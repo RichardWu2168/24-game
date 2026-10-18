@@ -4,6 +4,10 @@ A math puzzle game and software learning project, implemented using different pr
 
 The goal is to use all four number cards exactly once, combining them with addition, subtraction, multiplication, division, and parentheses to make 24.
 
+## Live demo
+
+[https://24-game-rose.vercel.app](https://24-game-rose.vercel.app)
+
 ## Screenshots
 
 ![24 Game main screen](screenshots/main-screen.png)
@@ -45,8 +49,8 @@ The Got it! button has keyboard focus at the start of each game, so you can pres
 
 | Version | Technologies | Status |
 |---|---|---|
-| TypeScript + React | React, TypeScript, Vite | In development |
-| Node.js + TypeScript | React, TypeScript, Node.js, Express | Planned |
+| TypeScript + React | React, TypeScript, Vite | [Live](https://24-game-rose.vercel.app) |
+| Node.js + TypeScript | React, TypeScript, Node.js, Express | In development |
 | WPF | C#, WPF | Planned |
 | C# + ASP.NET Core | C#, ASP.NET Core Web API | Planned |
 | Blazor | C#, Blazor | Planned |
@@ -116,6 +120,17 @@ Build the application:
 ```bash
 npm run build
 ```
+
+## Deployment
+
+The React + TypeScript version is deployed on [Vercel](https://vercel.com) at https://24-game-rose.vercel.app. Vercel deploys automatically each time changes are pushed to the `main` branch.
+
+Deployment settings:
+
+- **Root directory:** `react-typescript/frontend`
+- **Framework preset:** Vite
+- **Build command:** `npm run build`
+- **Output directory:** `dist`
 
 ## License
 
