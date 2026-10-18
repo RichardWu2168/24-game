@@ -1,3 +1,7 @@
+html {
+  scrollbar-gutter: stable;
+}
+
 #root {
   width: 100%;
   min-height: 100vh;
@@ -14,6 +18,9 @@
   margin-bottom: 12px;
   font-size: 3rem;
   color: #174a35;
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e3e8f0;
 }
 
 .game-header p {
@@ -192,4 +199,89 @@
   font-family: Consolas, 'Courier New', monospace;
   font-size: 1rem;
   overflow-wrap: anywhere;
+}
+
+.game-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.timer-label {
+  font-size: 28px;
+  font-weight: 500;
+}
+
+.timer-value {
+  font-size: 36px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
+.operator-buttons {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.operator-button {
+  min-width: 48px;
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.expression-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.sound-toggle {
+  border: none;
+  background: transparent;
+  color: #555;
+  font-size: 16px;
+  font-weight: bold;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.sound-toggle:hover {
+  color: #333;
+  text-decoration: underline;
+}
+
+.got-it-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.got-it-button {
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 0.6rem 1.8rem;
+  background: #2e8b57;
+  color: #fff;
+}
+
+.got-it-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.got-it-hint {
+  font-size: 0.8rem;
+  opacity: 0.7;
 }

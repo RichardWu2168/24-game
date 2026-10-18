@@ -100,4 +100,25 @@ describe('checkAnswer', () => {
     expect(result.valid).toBe(false)
   })
 
+  it('evaluates expressions with negative intermediate values', () => {
+    const result = checkAnswer('3 * (4 - 8) + 6', cards)
+
+    expect(result.valid).toBe(false)
+    expect(result.value).toBe(-6)
+  })
+
+  it('rejects a game with fewer than four cards', () => {
+    const result = checkAnswer('3 + 4 + 6', [3, 4, 6])
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toBe('The game must have exactly four cards.')
+  })
+
+  it('applies multiplication before addition', () => {
+    const result = checkAnswer('3 + 4 * 6 + 8', cards)
+
+    expect(result.valid).toBe(false)
+    expect(result.value).toBe(35)
+  })
+
 })

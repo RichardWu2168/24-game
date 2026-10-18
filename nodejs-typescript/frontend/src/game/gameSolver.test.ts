@@ -45,7 +45,16 @@ describe('findSolution', () => {
       'The solver requires exactly four numbers.',
     )
   })
-  
+
+  it('does not use fractional intermediate results', () => {
+    const cards = [1, 3, 4, 6]
+    const solution = findSolution(cards)
+
+    if (solution !== null) {
+      expect(checkAnswer(solution, cards).valid).toBe(true)
+    }
+  })
+
 })
 
 describe('findAllSolutions', () => {
@@ -69,4 +78,5 @@ describe('findAllSolutions', () => {
       'The solver requires exactly four numbers.',
     )
   })
+
 })
