@@ -4,6 +4,10 @@ A math puzzle game and software learning project, implemented using different pr
 
 The goal is to use all four number cards exactly once, combining them with addition, subtraction, multiplication, division, and parentheses to make 24.
 
+## Screenshots
+
+![24 Game main screen](screenshots/main-screen.png)
+
 ## Game Rules
 
 - Each round deals four cards with values from 1 to 10.
@@ -26,7 +30,7 @@ The goal is to use all four number cards exactly once, combining them with addit
 
 ## React + TypeScript Version
 
-The current implementation is located in [`nodejs-typescript/`](nodejs-typescript/frontend).
+The current implementation is located in [`react-typescript/`](react-typescript/frontend).
 
 It includes:
 
