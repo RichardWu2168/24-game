@@ -194,7 +194,7 @@ function App() {
   return (
     <main className="game-container">
       <header className="game-header">
-        <h1>The 24 Game</h1>
+        <h1>Math 24 Game</h1>
         <p>Use four numbers and mathematical operations to make 24!</p>
       </header>
 
