@@ -17,6 +17,30 @@ The goal is to use all four number cards exactly once, combining them with addit
 - Generate new solvable hands and check your answer.
 - View possible solutions when you need help.
 
+## Timer and "Got it!" Button
+
+The timer starts when a new game begins and counts up in `mm:ss`.
+
+Typing an answer takes time and doesn't reflect how quickly a player worked it out. When you have the answer in your head, press **Got it!**. The timer stops and its label changes from "Time" to **Thinking time**. You can then type the expression at your own pace.
+
+The timer also stops in these cases:
+
+- **Correct answer:** the timer stops when a valid answer is checked. If Got it! was never pressed, this time includes typing, so the label stays "Time".
+- **Show Solutions:** the timer stops when the solutions are shown. The label stays "Time", because a time recorded after seeing the answers is not a thinking time.
+
+Starting a **New Game** resets the timer and the label.
+
+## Keyboard Shortcuts
+
+| Action | Shortcut |
+|---|---|
+| Got it! (stop the timer) | `Space` |
+| Check Answer | `Alt+C` (or `Enter` while typing in the answer box) |
+| Show Solutions | `Alt+S` |
+| New Game | `Alt+N` |
+
+The Got it! button has keyboard focus at the start of each game, so you can press `Space` right away. Once you click into the answer box, `Space` types a space as usual. The `Alt` shortcuts work from anywhere on the page.
+
 ## Implementations
 
 | Version | Technologies | Status |
@@ -40,7 +64,9 @@ It includes:
 - Automatic generation of solvable hands using four copies of each card value from 1 to 10.
 - Interactive number cards and direct expression input.
 - Answer validation and a solution display.
-- A timer and optional success sound.
+- A timer with a "Got it!" button that records thinking time separately from typing time.
+- Keyboard shortcuts for the main actions.
+- An optional success sound.
 - Automated unit tests using Vitest.
 
 The frontend currently provides the playable game interface. Backend API development and frontend-backend integration are planned for future development.
@@ -64,7 +90,7 @@ The frontend currently provides the playable game interface. Backend API develop
 Open a terminal and navigate to the frontend directory:
 
 ```bash
-cd nodejs-typescript/frontend
+cd react-typescript/frontend
 ```
 
 Install dependencies:

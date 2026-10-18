@@ -166,6 +166,31 @@ function App() {
     }
   }
 
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.repeat) {
+        return
+      }
+
+      if (event.code === 'KeyC') {
+        event.preventDefault()
+        handleCheckAnswer()
+      } else if (event.code === 'KeyS') {
+        event.preventDefault()
+        showSolution()
+      } else if (event.code === 'KeyN') {
+        event.preventDefault()
+        newGame()
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+
+    return () => {
+      window.removeEventListener('keydown', handleShortcut)
+    }
+  })
+
   return (
     <main className="game-container">
       <header className="game-header">
@@ -319,18 +344,26 @@ function App() {
         />
 
         <div className="button-container">
-          <button type="button" onClick={handleCheckAnswer}>
-            Check Answer
+          <button type="button" onClick={handleCheckAnswer} aria-keyshortcuts="Alt+C">
+            <u>C</u>heck Answer
           </button>
 
           <button
             type="button"
-            className="secondary-button" onClick={showSolution}>
-            Show Solutions
+            className="secondary-button"
+            onClick={showSolution}
+            aria-keyshortcuts="Alt+S"
+          >
+            <u>S</u>how Solutions
           </button>
 
-          <button type="button" className="secondary-button" onClick={newGame}>
-            New Game
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={newGame}
+            aria-keyshortcuts="Alt+N"
+          >
+            <u>N</u>ew Game
           </button>
         </div>
 
