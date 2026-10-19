@@ -1,0 +1,346 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #153f35;
+  background: #f4f2ea;
+  font-synthesis: none;
+  font-weight: 400;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 54px 24px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 3px;
+  font-weight: 750;
+  color: #55756b;
+}
+
+h1 {
+  font-size: 64px;
+  letter-spacing: -4px;
+  line-height: 1.1;
+  margin: 16px 0 12px;
+}
+
+h1 span {
+  color: #c76540;
+}
+
+header p {
+  color: #65766e;
+  margin: 0;
+}
+
+.game {
+  background: #fffef9;
+  border: 1px solid #dedfd4;
+  border-radius: 22px;
+  padding: 32px;
+  box-shadow: 0 12px 40px #153f3508;
+}
+
+.cards {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 0 0 32px;
+}
+
+.card {
+  width: 112px;
+  height: 148px;
+  border: 1px solid #dedfd4;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  box-shadow: 0 4px 0 #ecece3;
+  font-size: 40px;
+  font-weight: 650;
+}
+
+.suit {
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.red {
+  color: #bf533e;
+}
+
+label {
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  margin-bottom: 10px;
+}
+
+.answer-row {
+  display: flex;
+  gap: 10px;
+}
+
+input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  padding: 14px;
+  border: 1px solid #c8d1c6;
+  border-radius: 9px;
+  color: #153f35;
+  background: white;
+}
+
+button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 14px 18px;
+  background: #153f35;
+  color: white;
+  white-space: nowrap;
+}
+
+button:hover {
+  background: #24594a;
+}
+
+input:focus-visible, button:focus-visible {
+  outline: 3px solid #d39350;
+  outline-offset: 3px;
+}
+
+.feedback {
+  min-height: 48px;
+  padding-top: 12px;
+  font-size: 14px;
+  color: #a03d2d;
+}
+
+.feedback.success {
+  color: #236347;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #e7e8df;
+  padding-top: 18px;
+}
+
+.secondary {
+  background: transparent;
+  border-color: #c8d1c6;
+  color: #153f35;
+}
+
+.secondary:hover {
+  background: #edf2ea;
+}
+
+.solutions {
+  border-top: 1px solid #e7e8df;
+  margin-top: 24px;
+  padding-top: 20px;
+}
+
+h2 {
+  font-size: 16px;
+  margin: 0 0 10px;
+}
+
+.solutions ul {
+  max-height: 260px;
+  overflow: auto;
+  padding-left: 22px;
+  line-height: 1.9;
+  font-size: 14px;
+}
+
+.solutions p, aside p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #586c61;
+}
+
+aside {
+  margin: 28px 14px;
+}
+
+aside p {
+  margin: 8px 0;
+}
+
+code {
+  font-family: ui-monospace, monospace;
+}
+
+@media (max-width: 540px) {
+  main {
+    padding: 32px 16px;
+  }
+
+  .game {
+    padding: 22px 16px;
+  }
+
+  .cards {
+    gap: 9px;
+  }
+
+  .card {
+    width: 22%;
+    height: 116px;
+    font-size: 32px;
+  }
+
+  .answer-row {
+    flex-direction: column;
+  }
+
+  h1 {
+    font-size: 54px;
+  }
+
+  .actions button {
+    padding: 12px;
+  }
+
+  .feedback {
+    min-height: 54px;
+  }
+}
+
+.expression-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.expression-controls button {
+  padding: 10px 14px;
+}
+
+.card:hover {
+  background: #f0f4ec;
+}
+
+.card:disabled {
+  opacity: .4;
+  box-shadow: none;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+.secondary:disabled {
+  opacity: .4;
+}
+
+.card {
+  color: #153f35;
+}
+
+.card.red {
+  color: #bf533e;
+}
+
+.puzzle-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.puzzle-progress > div {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.timer {
+  font-size: 28px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.puzzle-status {
+  font-size: 13px;
+  color: #586c61;
+}
+
+button:disabled {
+  opacity: .45;
+}
+
+kbd {
+  font: inherit;
+  font-size: 11px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin-left: 5px;
+  opacity: .75;
+}
+
+.shortcut-help {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #586c61;
+  margin: 18px 0 0;
+}
+
+@media (max-width: 540px) {
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .puzzle-progress > div {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+}
+
+.sound-control {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.sound-toggle {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 7px 12px;
+}
+
+.shortcut-toggle {
+  margin-top: 8px;
+  font-size: 12px;
+  padding: 7px 12px;
+}

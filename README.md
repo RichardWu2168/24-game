@@ -53,7 +53,7 @@ The Got it! button has keyboard focus at the start of each game, so you can pres
 | Node.js + TypeScript | React, TypeScript, Node.js, Express | In development |
 | WPF | C#, WPF | Planned |
 | C# + ASP.NET Core | C#, ASP.NET Core Web API | Planned |
-| Blazor | C#, Blazor | Planned |
+| Angular  | C#, Angular  | Planned |
 | .NET MAUI | C#, .NET MAUI | Planned |
 
 ## React + TypeScript Version
