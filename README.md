@@ -4,13 +4,20 @@ A math puzzle game and software learning project, implemented using different pr
 
 The goal is to use all four number cards exactly once, combining them with addition, subtraction, multiplication, division, and parentheses to make 24.
 
-## Live demo
+## Live Demos
 
-[https://24-game-rose.vercel.app](https://24-game-rose.vercel.app)
+- [React + TypeScript Version](https://24-game-rose.vercel.app)
+- [Codex React + TypeScript Experiment](https://24-game-codex.vercel.app)
 
 ## Screenshots
 
+### React + TypeScript Version
+
 ![24 Game main screen](screenshots/main-screen.png)
+
+### Codex Experiment
+
+![Codex 24 Game](screenshots/codex.png)
 
 ## Game Rules
 
@@ -29,8 +36,8 @@ Typing an answer takes time and doesn't reflect how quickly a player worked it o
 
 The timer also stops in these cases:
 
-- **Correct answer:** the timer stops when a valid answer is checked. If Got it! was never pressed, this time includes typing, so the label stays "Time".
-- **Show Solutions:** the timer stops when the solutions are shown. The label stays "Time", because a time recorded after seeing the answers is not a thinking time.
+- **Correct answer:** The timer stops when a valid answer is checked. If Got it! was never pressed, this time includes typing, so the label stays "Time".
+- **Show Solutions:** The timer stops when the solutions are shown. The label stays "Time", because a time recorded after seeing the answers is not a thinking time.
 
 Starting a **New Game** resets the timer and the label.
 
@@ -49,16 +56,17 @@ The Got it! button has keyboard focus at the start of each game, so you can pres
 
 | Version | Technologies | Status |
 |---|---|---|
-| TypeScript + React | React, TypeScript, Vite | [Live](https://24-game-rose.vercel.app) |
+| React + TypeScript | React, TypeScript, Vite | [Live](https://24-game-rose.vercel.app) |
+| Codex React + TypeScript Experiment | React, TypeScript, Vite | [Live](https://24-game-codex.vercel.app) |
 | Node.js + TypeScript | React, TypeScript, Node.js, Express | In development |
 | WPF | C#, WPF | Planned |
 | C# + ASP.NET Core | C#, ASP.NET Core Web API | Planned |
-| Angular  | C#, Angular  | Planned |
+| Angular | C#, Angular | Planned |
 | .NET MAUI | C#, .NET MAUI | Planned |
 
 ## React + TypeScript Version
 
-The current implementation is located in [`react-typescript/`](react-typescript/frontend).
+The current implementation is located in [`react-typescript/frontend/`](react-typescript/frontend).
 
 It includes:
 
@@ -74,6 +82,19 @@ It includes:
 - Automated unit tests using Vitest.
 
 The frontend currently provides the playable game interface. Backend API development and frontend-backend integration are planned for future development.
+
+## Codex React + TypeScript Experiment
+
+This implementation was created with OpenAI Codex as an experiment in AI-assisted software development.
+
+- Built with React, TypeScript, and Vite.
+- Includes automated tests for game logic, input handling, timer behavior, and UI interactions.
+- Uses integer-only intermediate calculations.
+- Deployed separately on Vercel.
+
+**Live demo:** [https://24-game-codex.vercel.app](https://24-game-codex.vercel.app)
+
+Source code: [`codex-experiment/`](codex-experiment/)
 
 ## Project Goals
 
@@ -123,7 +144,9 @@ npm run build
 
 ## Deployment
 
-The React + TypeScript version is deployed on [Vercel](https://vercel.com) at https://24-game-rose.vercel.app. Vercel deploys automatically each time changes are pushed to the `main` branch.
+The React + TypeScript version is deployed on [Vercel](https://vercel.com/) at [https://24-game-rose.vercel.app](https://24-game-rose.vercel.app).
+
+Vercel deploys automatically when changes are pushed to the `main` branch.
 
 Deployment settings:
 
@@ -131,6 +154,8 @@ Deployment settings:
 - **Framework preset:** Vite
 - **Build command:** `npm run build`
 - **Output directory:** `dist`
+
+The Codex experiment is deployed as a separate Vercel project at [https://24-game-codex.vercel.app](https://24-game-codex.vercel.app), using `codex-experiment` as its root directory.
 
 ## License
 
