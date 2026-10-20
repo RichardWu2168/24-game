@@ -103,7 +103,10 @@ export default function App() {
     event.preventDefault();
     const result = validateAnswer(draft.text, numbers);
     setFeedback(result);
-    if (result.valid) sound.play();
+    if (result.valid) {
+      timer.stop('solved');
+      sound.play();
+    }
   }
 
   function clearExpression() {
@@ -291,7 +294,8 @@ export default function App() {
         </p>
         <p>
           Click <strong>Got It</strong> when you find a solution mentally to stop the timer.
-          No expression is required. Showing solutions first stops the timer and marks
+          No expression is required. Checking a correct answer also stops the timer.
+          Incorrect answers leave it running. Showing solutions first stops the timer and marks
           the puzzle revealed. A new puzzle starts a fresh timer.
         </p>
         <p>

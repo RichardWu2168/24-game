@@ -32,7 +32,7 @@ describe('puzzle timing in the UI', () => {
     expect(puzzleState()).toBe('Solved');
   });
 
-  it('keeps running after answer checks and freezes as revealed when solutions are requested', () => {
+  it('keeps running after incorrect answers and preserves revealed status after correct answers', () => {
     render(<App />);
     fireEvent.change(input(), { target: { value: '1+2+3+4' } });
     fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
@@ -40,10 +40,11 @@ describe('puzzle timing in the UI', () => {
     act(() => vi.advanceTimersByTime(3000));
     expect(clock()).toBe('00:03');
     expect(puzzleState()).toBe('Solving');
+    fireEvent.click(screen.getByRole('button', { name: 'Show solutions' }));
+    expect(puzzleState()).toBe('Revealed');
     fireEvent.change(input(), { target: { value: '(1+2+3)*4' } });
     fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
-    expect(puzzleState()).toBe('Solving');
-    fireEvent.click(screen.getByRole('button', { name: 'Show solutions' }));
+    expect(screen.getByRole('status').textContent).toContain('Correct!');
     expect(puzzleState()).toBe('Revealed');
     fireEvent.click(screen.getByRole('button', { name: 'Got It' }));
     act(() => vi.advanceTimersByTime(5000));
@@ -54,6 +55,24 @@ describe('puzzle timing in the UI', () => {
     expect(puzzleState()).toBe('Solving');
     act(() => vi.advanceTimersByTime(1000));
     expect(clock()).toBe('00:01');
+  });
+
+  it('stops on a correct checked answer without Got It and preserves the final time', () => {
+    render(<App />);
+    act(() => vi.advanceTimersByTime(12340));
+    fireEvent.change(input(), { target: { value: '(1+2+3)*4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    expect(clock()).toBe('00:12');
+    expect(puzzleState()).toBe('Solved');
+    expect((screen.getByRole('button', { name: 'Got It' }) as HTMLButtonElement).disabled).toBe(true);
+    act(() => vi.advanceTimersByTime(5000));
+    fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show solutions' }));
+    expect(clock()).toBe('00:12');
+    expect(puzzleState()).toBe('Solved');
+    fireEvent.click(screen.getByRole('button', { name: 'New puzzle' }));
+    expect(clock()).toBe('00:00');
+    expect(puzzleState()).toBe('Solving');
   });
 
   it('does not reset the timer if dealing a new puzzle fails', () => {
@@ -99,7 +118,7 @@ describe('keyboard shortcuts', () => {
     input().blur();
     await user.keyboard('{Enter}');
     expect(screen.getByRole('status').textContent).toContain('not 24');
-    expect(screen.getByLabelText('Puzzle state').textContent).toBe('Solving');
+    expect(screen.getByLabelText('Puzzle state').textContent).toBe('Solved');
   });
 
   it('preserves spaces and does not trigger letter shortcuts while editing', async () => {
@@ -239,7 +258,7 @@ describe('keyboard shortcuts', () => {
     await user.click(toggle);
     toggle.blur();
     await user.keyboard('s');
-    expect(screen.getByLabelText('Puzzle state').textContent).toBe('Revealed');
+    expect(screen.getByLabelText('Puzzle state').textContent).toBe('Solved');
   });
 
   it('respects disabled actions and removes the listener on unmount', () => {
