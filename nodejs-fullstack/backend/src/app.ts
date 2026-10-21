@@ -1,9 +1,23 @@
 
+import cors from "cors";
 import express from "express";
 import { generatePuzzle } from "./game.js";
 import { checkAnswer } from "./answerChecker.js";
 
 const app = express();
+
+const allowedOrigins = (process.env.FRONTEND_URL ?? "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+app.use(
+    cors({
+        origin: allowedOrigins,
+        methods: ["GET", "POST"],
+        allowedHeaders: ["Content-Type"],
+    })
+);
 
 app.use(express.json());
 
