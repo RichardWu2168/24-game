@@ -7,6 +7,7 @@ import { getRandomExample } from './game/exampleGenerator'
 import './App.css'
 
 const DEFAULT_MESSAGE = 'Use all four numbers to make 24.'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 function App() {
   const [cards, setCards] = useState<number[]>([3, 4, 6, 8])
@@ -105,7 +106,7 @@ function App() {
   async function newGame() {
 
     try {
-      const response = await fetch('/api/puzzle')
+      const response = await fetch(`${API_BASE_URL}/api/puzzle`)
 
       if (!response.ok) {
         throw new Error('Failed to generate a new puzzle.')
@@ -158,7 +159,7 @@ function App() {
     setExpression(normalizedExpression)
 
     try {
-      const response = await fetch('/api/check-answer', {
+      const response = await fetch(`${API_BASE_URL}/api/check-answer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
