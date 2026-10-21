@@ -150,11 +150,7 @@ function App() {
 
 
   async function handleCheckAnswer() {
-    const normalizedExpression = expression
-      .replace(/[xX*]/g, '×')
-      .replace(/−/g, '-')
-      .replace(/×/g, '*')
-      .replace(/÷/g, '/')
+    const normalizedExpression = expression.replace(/[xX*]/g, '×')
 
     setExpression(normalizedExpression)
 
@@ -166,7 +162,7 @@ function App() {
         },
         body: JSON.stringify({
           numbers: cards,
-          expression: normalizedExpression,
+          expression: normalizedExpression.replace(/−/g, '-').replace(/×/g, '*').replace(/÷/g, '/'),
         }),
       })
 
