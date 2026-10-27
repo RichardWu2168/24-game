@@ -11,6 +11,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 function App() {
   const [cards, setCards] = useState<number[]>([3, 4, 6, 8])
+  const [gameId, setGameId] = useState<string | null>(null)
   const [expression, setExpression] = useState('')
   const expressionInputRef = useRef<HTMLInputElement>(null)
   const [exampleExpression, setExampleExpression] = useState(() =>
@@ -112,8 +113,9 @@ function App() {
         throw new Error('Failed to generate a new puzzle.')
       }
 
-      const data: { numbers: number[] } = await response.json()
+      const data: { numbers: number[]; gameId: string } = await response.json()
       const newCards = data.numbers
+      setGameId(data.gameId)
 
       setCards(newCards)
       setElapsedSeconds(0)
@@ -150,6 +152,12 @@ function App() {
 
 
   async function handleCheckAnswer() {
+    if (!gameId) {
+      setMessage('Please start a new game before checking your answer.')
+      setIsCorrect(null)
+      return
+    }
+
     const normalizedExpression = expression.replace(/[xX*]/g, '×')
 
     setExpression(normalizedExpression)
@@ -162,7 +170,11 @@ function App() {
         },
         body: JSON.stringify({
           numbers: cards,
-          expression: normalizedExpression.replace(/−/g, '-').replace(/×/g, '*').replace(/÷/g, '/'),
+          expression: normalizedExpression
+            .replace(/−/g, '-')
+            .replace(/×/g, '*')
+            .replace(/÷/g, '/'),
+          gameId,
         }),
       })
 
