@@ -4,6 +4,149 @@ import assert from "node:assert/strict";
 import express from "express";
 import { createApp, errorHandler, type GameStore } from "./app.js";
 
+test("a different session cannot submit an answer to another session's game", async () => {
+    const store = createFakeStore();
+    let writes = 0;
+    store.gameAttempt.create = async () => { writes++; };
+    store.game.update = async () => { writes++; };
+    await withServer(async (url) => {
+        const response = await fetch(`${url}/api/check-answer`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Session-Id": "another-session" },
+            body: JSON.stringify({ gameId: "test-game-id", numbers: [3, 5, 4, 1], expression: "(3+5)*(4-1)" }),
+        });
+        assert.equal(response.status, 404);
+        assert.equal(writes, 0);
+    }, createApp(store));
+});
+
+// An in-memory transaction implementation exercises the route's transaction
+// boundary, rollback, and session serialization without modifying a real DB.
+function transactionalStore() {
+    type SavedGame = { id: string; sessionId: string; numbers: number[]; status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED" };
+    let state = {
+        games: [{ id: "original", sessionId: "test-session-id", numbers: [3, 5, 4, 1], status: "IN_PROGRESS" }] as SavedGame[],
+        attempts: [] as string[],
+    };
+    let tail = Promise.resolve();
+    let sequence = 0;
+    const controls = { failCreate: false, failComplete: false, failCommit: false };
+    const store: GameStore = {
+        gameSession: { upsert: async ({ where }) => ({ id: where.id }) },
+        game: {
+            findUnique: async ({ where }) => state.games.find(game => game.id === where.id) ?? null,
+            findFirst: async ({ where }) => state.games.find(game => game.sessionId === where.sessionId && game.status === where.status) ?? null,
+            create: async ({ data }) => {
+                if (controls.failCreate) throw new Error("Injected creation failure");
+                const game: SavedGame = { id: `new-${++sequence}`, sessionId: data.session.connect.id, numbers: data.numbers, status: "IN_PROGRESS" };
+                state.games.push(game);
+                return game;
+            },
+            update: async ({ where, data }) => {
+                if (data.status === "COMPLETED" && controls.failComplete) throw new Error("Injected completion failure");
+                const game = state.games.find(game => game.id === where.id && (!where.status || game.status === where.status));
+                assert.ok(game);
+                if (data.status) game.status = data.status;
+                return game;
+            },
+        },
+        gameAttempt: { create: async ({ data }) => { state.attempts.push(data.gameId); } },
+        withSessionTransaction: async (_sessionId, work) => {
+            const previous = tail;
+            let release!: () => void;
+            tail = new Promise<void>(resolve => { release = resolve; });
+            await previous;
+            const snapshot = structuredClone(state);
+            try {
+                const result = await work(store);
+                if (controls.failCommit) throw new Error("Injected commit failure");
+                return result;
+            } catch (error) {
+                state = snapshot;
+                throw error;
+            } finally {
+                release();
+            }
+        },
+    };
+    return { store, controls, state: () => state };
+}
+
+const sessionHeaders = { "Content-Type": "application/json", "X-Session-Id": "test-session-id" };
+const correctSavedAnswer = { gameId: "original", numbers: [3, 5, 4, 1], expression: "(3+5)*(4-1)" };
+
+test("concurrent correct submissions record only one successful attempt", async () => {
+    const fixture = transactionalStore();
+    await withServer(async (url) => {
+        const responses = await Promise.all([1, 2].map(() => fetch(`${url}/api/check-answer`, {
+            method: "POST", headers: sessionHeaders, body: JSON.stringify(correctSavedAnswer),
+        })));
+        assert.deepEqual(responses.map(response => response.status).sort(), [200, 400]);
+        assert.equal(fixture.state().attempts.length, 1);
+        assert.equal(fixture.state().games[0].status, "COMPLETED");
+    }, createApp(fixture.store));
+});
+
+test("a failed completion rolls back its answer attempt", async () => {
+    const fixture = transactionalStore();
+    fixture.controls.failComplete = true;
+    await withServer(async (url) => {
+        const response = await fetch(`${url}/api/check-answer`, {
+            method: "POST", headers: sessionHeaders, body: JSON.stringify(correctSavedAnswer),
+        });
+        assert.equal(response.status, 500);
+        assert.equal(fixture.state().attempts.length, 0);
+        assert.equal(fixture.state().games[0].status, "IN_PROGRESS");
+    }, createApp(fixture.store));
+});
+
+test("a failed replacement preserves the previous active game", async () => {
+    const fixture = transactionalStore();
+    fixture.controls.failCreate = true;
+    await withServer(async (url) => {
+        const response = await fetch(`${url}/api/puzzle`, { method: "POST", headers: sessionHeaders });
+        assert.equal(response.status, 500);
+        assert.equal(fixture.state().games[0].status, "IN_PROGRESS");
+    }, createApp(fixture.store));
+});
+
+test("a commit failure returns an error instead of a premature success", async () => {
+    const fixture = transactionalStore();
+    fixture.controls.failCommit = true;
+    await withServer(async (url) => {
+        const response = await fetch(`${url}/api/check-answer`, {
+            method: "POST", headers: sessionHeaders, body: JSON.stringify(correctSavedAnswer),
+        });
+        assert.equal(response.status, 500);
+        assert.equal(fixture.state().attempts.length, 0);
+    }, createApp(fixture.store));
+});
+
+test("concurrent new-game requests leave exactly one active game", async () => {
+    const fixture = transactionalStore();
+    await withServer(async (url) => {
+        const responses = await Promise.all([1, 2].map(() => fetch(`${url}/api/puzzle`, { method: "POST", headers: sessionHeaders })));
+        assert.ok(responses.every(response => response.status === 200));
+        assert.equal(fixture.state().games.filter(game => game.status === "IN_PROGRESS").length, 1);
+    }, createApp(fixture.store));
+});
+
+test("answer submission and replacement cannot complete an abandoned game", async () => {
+    const fixture = transactionalStore();
+    await withServer(async (url) => {
+        const [replacement, answer] = await Promise.all([
+            fetch(`${url}/api/puzzle`, { method: "POST", headers: sessionHeaders }),
+            fetch(`${url}/api/check-answer`, { method: "POST", headers: sessionHeaders, body: JSON.stringify(correctSavedAnswer) }),
+        ]);
+        assert.equal(replacement.status, 200);
+        const original = fixture.state().games[0];
+        assert.ok(answer.status === 200 || answer.status === 400);
+        assert.equal(original.status, answer.status === 200 ? "COMPLETED" : "ABANDONED");
+        assert.equal(fixture.state().attempts.length, answer.status === 200 ? 1 : 0);
+        assert.equal(fixture.state().games.filter(game => game.status === "IN_PROGRESS").length, 1);
+    }, createApp(fixture.store));
+});
+
 function createFakeStore(): GameStore {
     return {
         game: {

@@ -98,7 +98,13 @@ Example request:
 }
 ```
 
-The backend validates the submitted expression. When a game ID is supplied, the backend also verifies that the game exists, that the submitted numbers match the saved puzzle, and that the game is still in progress.
+The backend validates the submitted expression. When a game ID is supplied, the backend also verifies that the game belongs to the supplied session, that the submitted numbers match the saved puzzle, and that the game is still in progress.
+
+Puzzle creation, replacement, and saved answer submissions run in database
+transactions with a per-session PostgreSQL lock. The server sends success only
+after commit. Page initialization resumes a game with GET; the New Game action
+uses POST to replace it. The frontend blocks overlapping game requests and
+ignores obsolete responses.
 
 Answer attempts are persisted. An incorrect answer leaves the game in progress; a correct answer completes the game and records its completion time.
 
@@ -195,7 +201,10 @@ From the backend directory, validate the Prisma schema:
 npx prisma validate --config prisma7.config.ts
 ```
 
-Apply existing migrations to the database:
+If your database contains games from before sessions were introduced, follow
+the legacy upgrade below before running the normal migration command.
+
+Apply existing migrations to a fresh database (or one already using sessions):
 
 ```bash
 npx prisma migrate deploy --config prisma7.config.ts
@@ -208,6 +217,33 @@ npx prisma generate --config prisma7.config.ts
 ```
 
 The project uses `prisma7.config.ts` to configure the Prisma schema, migrations directory, and database connection.
+
+#### Upgrading existing games to sessions
+
+The original `20261027203849_add_game_sessions` migration requires an empty
+`Game` table. Its historical contents are preserved so databases that already
+applied it keep matching Prisma's recorded checksum. For a database at the
+initial migration that contains games, run this upgrade from the backend
+directory instead of applying the original session migration directly:
+
+```bash
+npx prisma db execute --file prisma/upgrades/add_game_sessions.sql --config prisma7.config.ts
+npx prisma migrate resolve --applied 20261027203849_add_game_sessions --config prisma7.config.ts
+npx prisma migrate deploy --config prisma7.config.ts
+```
+
+The SQL upgrade runs in a transaction: it adds a nullable session column,
+creates sessions, backfills every game, then enforces the required column and
+foreign key. Existing games and attempts remain intact. Each legacy game gets
+its own `legacy:<game-id>` session, preserving the one-active-game constraint.
+Legacy games cannot automatically be associated with a browser because the
+original records have no browser session identifier.
+
+Use this SQL only on the pre-session schema. Databases that already applied the
+session migration need no upgrade. If an earlier migration attempt failed,
+inspect partial changes before following Prisma's failed-migration recovery
+workflow. Do not reset a database to perform this upgrade. See Prisma's
+[migration history guidance](https://www.prisma.io/docs/orm/v7/prisma-migrate/understanding-prisma-migrate/migration-histories).
 
 When making schema changes during development, create a migration with:
 
@@ -279,6 +315,17 @@ npm test
 ```
 
 The backend test script builds the project first and then runs the test suites using Node.js's built-in test runner.
+
+Run the optional PostgreSQL integration checks with `DATABASE_URL` configured:
+
+```bash
+npm run test:db
+```
+
+These checks verify Prisma session locks, transaction rollback, and the legacy
+session upgrade on empty and populated schemas. Temporary test schemas are
+rolled back; the application's tables are not migrated or reset. The configured
+database account needs permission to create schemas.
 
 ### Frontend
 

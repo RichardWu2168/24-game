@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 
 import { formatTime } from './utils/formatTime'
 import { playSuccessSound } from './utils/playSuccessSound'
@@ -58,11 +58,12 @@ function App() {
   const [isSoundEnabled, setIsSoundEnabled] = useState(true)
   const [hasGotIt, setHasGotIt] = useState(false)
   const gotItButtonRef = useRef<HTMLButtonElement>(null)
+  const requestPending = useRef(false)
+  const requestVersion = useRef(0)
+  const mounted = useRef(false)
+  const historyVersion = useRef(0)
+  const [isRequestPending, setIsRequestPending] = useState(true)
 
-  useEffect(() => {
-    void newGame()
-    void loadGameHistory()
-  }, [])
 
   useEffect(() => {
     if (isTimerRunning) {
@@ -71,7 +72,7 @@ function App() {
   }, [isTimerRunning, cards])
 
   useEffect(() => {
-    if (!isTimerRunning) {
+    if (!isTimerRunning || isRequestPending || !gameId) {
       return
     }
 
@@ -82,9 +83,12 @@ function App() {
     return () => {
       window.clearInterval(intervalId)
     }
-  }, [isTimerRunning])
+  }, [isTimerRunning, isRequestPending, gameId])
 
-  async function loadGameHistory() {
+  const loadGameHistory = useCallback(async () => {
+    const version = ++historyVersion.current
+    await Promise.resolve()
+    if (!mounted.current || version !== historyVersion.current) return
     setIsHistoryLoading(true)
     setHistoryError('')
 
@@ -100,14 +104,16 @@ function App() {
       }
 
       const data: GameHistoryResponse = await response.json()
+      if (!mounted.current || version !== historyVersion.current) return
       setGames(data.games)
     } catch (error) {
+      if (!mounted.current || version !== historyVersion.current) return
       console.error('Failed to load game history:', error)
       setHistoryError('Unable to load game history. Please try again.')
     } finally {
-      setIsHistoryLoading(false)
+      if (mounted.current && version === historyVersion.current) setIsHistoryLoading(false)
     }
-  }
+  }, [])
 
   function resetFeedback() {
     setMessage(DEFAULT_MESSAGE)
@@ -115,6 +121,7 @@ function App() {
   }
 
   function handleCardClick(number: number) {
+    if (requestPending.current || !gameId) return
     const currentNumbers = expression.match(/\d+/g) ?? []
     const cardNumber = String(number)
 
@@ -155,6 +162,7 @@ function App() {
   }
 
   function handleGotIt() {
+    if (requestPending.current) return
     setIsTimerRunning(false)
     setHasGotIt(true)
     setMessage('Now type your answer and press Check Answer.')
@@ -164,10 +172,19 @@ function App() {
 
 
   async function newGame() {
+    await loadPuzzle(true)
+  }
 
+  async function loadPuzzle(forceNew: boolean) {
+    if (requestPending.current) return
+    requestPending.current = true
+    const version = ++requestVersion.current
     try {
+      await Promise.resolve()
+      if (!mounted.current || version !== requestVersion.current) return
+      setIsRequestPending(true)
       const response = await fetch(`${API_BASE_URL}/api/puzzle`, {
-        method: 'POST',
+        method: forceNew ? 'POST' : 'GET',
         headers: {
           'X-Session-Id': getSessionId(),
         },
@@ -178,6 +195,7 @@ function App() {
       }
 
       const data: { numbers: number[]; gameId: string } = await response.json()
+      if (!mounted.current || version !== requestVersion.current) return
       const newCards = data.numbers
       setGameId(data.gameId)
 
@@ -188,18 +206,48 @@ function App() {
       setExampleExpression(getRandomExample(newCards))
       setSolutions([])
       setExpression('')
-      resetFeedback()
+      setMessage(DEFAULT_MESSAGE)
+      setIsCorrect(null)
       expressionInputRef.current?.focus()
+      void loadGameHistory()
     } catch (error) {
+      if (!mounted.current || version !== requestVersion.current) return
       console.error('Failed to generate puzzle:', error)
       setMessage('Unable to generate a new puzzle. Please try again.')
       setIsCorrect(null)
     } finally {
+      if (mounted.current && version === requestVersion.current) {
+        requestPending.current = false
+        setIsRequestPending(false)
+      }
     }
   }
 
+  const invalidateRequests = useCallback(() => {
+    mounted.current = false
+    requestVersion.current++
+    historyVersion.current++
+    requestPending.current = false
+  }, [])
+
+  const initializeGame = useEffectEvent(() => {
+    void loadPuzzle(false)
+    void loadGameHistory()
+  })
+
+  useEffect(() => {
+    mounted.current = true
+    const version = ++requestVersion.current
+    void Promise.resolve().then(() => {
+      if (!mounted.current || version !== requestVersion.current) return
+      initializeGame()
+    })
+    return invalidateRequests
+  }, [invalidateRequests])
+
 
   function showSolution() {
+    if (requestPending.current || !gameId) return
     const allSolutions = findAllSolutions(cards)
 
     setIsTimerRunning(false)
@@ -216,6 +264,7 @@ function App() {
 
 
   async function handleCheckAnswer() {
+    if (requestPending.current) return
     if (!gameId) {
       setMessage('Please start a new game before checking your answer.')
       setIsCorrect(null)
@@ -225,6 +274,9 @@ function App() {
     const normalizedExpression = expression.replace(/[xX*]/g, '×')
 
     setExpression(normalizedExpression)
+    requestPending.current = true
+    setIsRequestPending(true)
+    const version = ++requestVersion.current
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/check-answer`, {
@@ -243,15 +295,18 @@ function App() {
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to check the answer.')
-      }
-
       const result: {
         valid: boolean
         message: string
         value?: number
       } = await response.json()
+      if (!mounted.current || version !== requestVersion.current) return
+
+      if (!response.ok) {
+        setMessage(result.message || 'Unable to check your answer. Please try again.')
+        setIsCorrect(null)
+        return
+      }
 
       if (result.valid) {
         setIsTimerRunning(false)
@@ -264,10 +319,17 @@ function App() {
 
       setMessage(result.message)
       setIsCorrect(result.valid)
+      void loadGameHistory()
     } catch (error) {
+      if (!mounted.current || version !== requestVersion.current) return
       console.error('Failed to check answer:', error)
       setMessage('Unable to check your answer. Please try again.')
       setIsCorrect(null)
+    } finally {
+      if (mounted.current && version === requestVersion.current) {
+        requestPending.current = false
+        setIsRequestPending(false)
+      }
     }
   }
 
@@ -350,7 +412,7 @@ function App() {
           type="button"
           className="got-it-button"
           onClick={handleGotIt}
-          disabled={!isTimerRunning}
+          disabled={!isTimerRunning || isRequestPending || !gameId}
           aria-keyshortcuts="G"
         >
           <u>G</u>ot it! <kbd>Space</kbd>
@@ -388,6 +450,7 @@ function App() {
             key={operator}
             type="button"
             className="operator-button"
+            disabled={isRequestPending || !gameId}
 
             onClick={() => {
               setExpression((current) => {
@@ -413,6 +476,7 @@ function App() {
         <button
           type="button"
           className="operator-button"
+          disabled={isRequestPending || !gameId}
           onClick={() => {
             setExpression((current) => {
               // Remove trailing spaces first, then remove the last character.
@@ -444,6 +508,7 @@ function App() {
         <button
           type="button"
           className="operator-button clear-button"
+          disabled={isRequestPending || !gameId}
           onClick={() => {
             setExpression('')
             resetFeedback()
@@ -472,6 +537,7 @@ function App() {
           id="expression"
           ref={expressionInputRef}
           type="text"
+          disabled={isRequestPending || !gameId}
           value={expression}
           onChange={(event) => {
             const normalizedValue = event.target.value
@@ -486,7 +552,7 @@ function App() {
         />
 
         <div className="button-container">
-          <button type="button" onClick={handleCheckAnswer} aria-keyshortcuts="C">
+          <button type="button" onClick={handleCheckAnswer} disabled={isRequestPending || !gameId} aria-keyshortcuts="C">
             <u>C</u>heck Answer
           </button>
 
@@ -494,6 +560,7 @@ function App() {
             type="button"
             className="secondary-button"
             onClick={showSolution}
+            disabled={isRequestPending || !gameId}
             aria-keyshortcuts="S"
           >
             <u>S</u>how Solutions
@@ -503,6 +570,7 @@ function App() {
             type="button"
             className="secondary-button"
             onClick={newGame}
+            disabled={isRequestPending}
             aria-keyshortcuts="N"
           >
             <u>N</u>ew Game

@@ -3,10 +3,11 @@ import cors from "cors";
 import express from "express";
 import { generatePuzzle } from "./game.js";
 import { checkAnswer } from "./answerChecker.js";
-import { prisma } from "./db.js";
+import { prisma, withSessionTransaction } from "./db.js";
 
 
 export interface GameStore {
+    withSessionTransaction?<T>(sessionId: string, work: (store: GameStore) => Promise<T>): Promise<T>;
     gameSession?: {
         upsert(args: {
             where: { id: string };
@@ -26,7 +27,7 @@ export interface GameStore {
         }): Promise<{ id: string }>;
 
         update(args: {
-            where: { id: string };
+            where: { id: string; status?: "IN_PROGRESS"; sessionId?: string };
             data: {
                 status?: "COMPLETED" | "ABANDONED";
                 completedAt?: Date;
@@ -127,6 +128,33 @@ export interface GameStore {
     };
 }
 
+type ApiReply = { status: number; body: unknown };
+
+// Serialize all state changes for a session across server processes. Send the
+// HTTP response only after the transaction commits successfully.
+function sessionRoute(
+    store: GameStore,
+    handler: (req: express.Request, store: GameStore) => Promise<ApiReply>,
+): express.RequestHandler {
+    return async (req, res, next) => {
+        try {
+            const sessionId = req.header("X-Session-Id");
+            const work = (transactionStore: GameStore) => handler(req, transactionStore);
+            let result: ApiReply;
+            if (sessionId && Object.is(store, prisma)) {
+                result = await withSessionTransaction(sessionId, work);
+            } else if (sessionId && store.withSessionTransaction) {
+                result = await store.withSessionTransaction(sessionId, work);
+            } else {
+                result = await work(store);
+            }
+            res.status(result.status).json(result.body);
+        } catch (error) {
+            next(error);
+        }
+    };
+}
+
 export function createApp(gameStore: GameStore = prisma) {
     const app = express();
 
@@ -152,119 +180,78 @@ export function createApp(gameStore: GameStore = prisma) {
         });
     });
 
-    const handlePuzzleRequest = async (
-        req: import("express").Request,
-        res: import("express").Response,
-        next: import("express").NextFunction,
-        forceNew: boolean,
-    ) => {
-        try {
-            const sessionId = req.header("X-Session-Id");
+    const handlePuzzleRequest = (forceNew: boolean) => sessionRoute(gameStore, async (req, gameStore) => {
+        const reply = (status: number, body: unknown): ApiReply => ({ status, body });
+        const sessionId = req.header("X-Session-Id");
 
-            if (!sessionId) {
-                res.status(400).json({
-                    error: "Missing X-Session-Id header.",
-                });
-                return;
-            }
-
-            if (!gameStore.gameSession) {
-                throw new Error("Session store is not configured.");
-            }
-
-            const session = await gameStore.gameSession.upsert({
-                where: { id: sessionId },
-                create: { id: sessionId },
-                update: {},
+        if (!sessionId) {
+            return reply(400, {
+                error: "Missing X-Session-Id header.",
             });
 
-            const findActiveGame = async () => {
-                if (!gameStore.game.findFirst) {
-                    throw new Error("Game store does not support finding active games.");
-                }
-
-                return gameStore.game.findFirst({
-                    where: {
-                        sessionId: session.id,
-                        status: "IN_PROGRESS",
-                    },
-                });
-            };
-
-            // GET resumes the existing game unless explicitly creating a new one.
-            if (!forceNew) {
-                const activeGame = await findActiveGame();
-
-                if (activeGame) {
-                    res.json({
-                        numbers: activeGame.numbers,
-                        gameId: activeGame.id,
-                    });
-                    return;
-                }
-            } else {
-                // POST starts a fresh game and abandons the previous unfinished game.
-                const activeGame = await findActiveGame();
-
-                if (activeGame) {
-                    await gameStore.game.update({
-                        where: { id: activeGame.id },
-                        data: { status: "ABANDONED" },
-                    });
-                }
-            }
-
-            const numbers = generatePuzzle();
-
-            try {
-                const game = await gameStore.game.create({
-                    data: {
-                        numbers,
-                        session: {
-                            connect: { id: session.id },
-                        },
-                    },
-                });
-
-                res.json({
-                    numbers,
-                    gameId: game.id,
-                });
-            } catch (error) {
-                // Two simultaneous GET requests may both observe no active game.
-                // If one wins the unique-index race, the other resumes that game.
-                const isUniqueConstraintError =
-                    typeof error === "object" &&
-                    error !== null &&
-                    "code" in error &&
-                    error.code === "P2002";
-
-                if (!forceNew && isUniqueConstraintError) {
-                    const activeGame = await findActiveGame();
-
-                    if (activeGame) {
-                        res.json({
-                            numbers: activeGame.numbers,
-                            gameId: activeGame.id,
-                        });
-                        return;
-                    }
-                }
-
-                throw error;
-            }
-        } catch (error) {
-            next(error);
         }
-    };
 
-    app.get("/api/puzzle", (req, res, next) => {
-        void handlePuzzleRequest(req, res, next, false);
+        if (!gameStore.gameSession) {
+            throw new Error("Session store is not configured.");
+        }
+
+        const session = await gameStore.gameSession.upsert({
+            where: { id: sessionId },
+            create: { id: sessionId },
+            update: {},
+        });
+
+        const findActiveGame = async () => {
+            if (!gameStore.game.findFirst) {
+                throw new Error("Game store does not support finding active games.");
+            }
+
+            return gameStore.game.findFirst({
+                where: {
+                    sessionId: session.id,
+                    status: "IN_PROGRESS",
+                },
+            });
+        };
+
+        // GET resumes the existing game unless explicitly creating a new one.
+        if (!forceNew) {
+            const activeGame = await findActiveGame();
+
+            if (activeGame) {
+                return reply(200, {
+                    numbers: activeGame.numbers,
+                    gameId: activeGame.id,
+                });
+
+            }
+        } else {
+            // POST starts a fresh game and abandons the previous unfinished game.
+            const activeGame = await findActiveGame();
+
+            if (activeGame) {
+                await gameStore.game.update({
+                    where: { id: activeGame.id, status: "IN_PROGRESS", sessionId },
+                    data: { status: "ABANDONED" },
+                });
+            }
+        }
+
+        const numbers = generatePuzzle();
+
+        const game = await gameStore.game.create({
+            data: {
+                numbers,
+                session: { connect: { id: session.id } },
+            },
+        });
+
+        return reply(200, { numbers, gameId: game.id });
+
     });
 
-    app.post("/api/puzzle", (req, res, next) => {
-        void handlePuzzleRequest(req, res, next, true);
-    });
+    app.get("/api/puzzle", handlePuzzleRequest(false));
+    app.post("/api/puzzle", handlePuzzleRequest(true));
 
     app.get("/api/games", async (req, res, next) => {
         try {
@@ -483,7 +470,8 @@ export function createApp(gameStore: GameStore = prisma) {
         }
     });
 
-    app.post("/api/check-answer", async (req, res, next) => {
+    app.post("/api/check-answer", sessionRoute(gameStore, async (req, gameStore) => {
+        const reply = (status: number, body: unknown): ApiReply => ({ status, body });
         const { numbers, expression } = req.body ?? {};
 
         if (
@@ -491,7 +479,7 @@ export function createApp(gameStore: GameStore = prisma) {
             !numbers.every((number: unknown) => typeof number === "number") ||
             typeof expression !== "string"
         ) {
-            return res.status(400).json({
+            return reply(400, {
                 valid: false,
                 message:
                     'Please provide "numbers" as an array and "expression" as a string.',
@@ -499,7 +487,7 @@ export function createApp(gameStore: GameStore = prisma) {
         }
 
         if (expression.length > 100) {
-            return res.status(400).json({
+            return reply(400, {
                 valid: false,
                 message: "Expression must not exceed 100 characters.",
             });
@@ -512,99 +500,89 @@ export function createApp(gameStore: GameStore = prisma) {
                     Number.isInteger(number) && number >= 1 && number <= 10,
             )
         ) {
-            return res.status(400).json({
+            return reply(400, {
                 valid: false,
                 message: "Please provide exactly four integers between 1 and 10.",
             });
         }
-        try {
 
-            const { gameId } = req.body ?? {};
+        const { gameId } = req.body ?? {};
 
-            if (gameId !== undefined && typeof gameId !== "string") {
-                return res.status(400).json({
+        if (gameId !== undefined && typeof gameId !== "string") {
+            return reply(400, {
+                valid: false,
+                message: "gameId must be a string.",
+            });
+        }
+
+        let numbersToCheck = numbers;
+
+        if (typeof gameId === "string") {
+            const sessionId = req.header("X-Session-Id");
+
+            if (!sessionId) {
+                return reply(400, {
                     valid: false,
-                    message: "gameId must be a string.",
+                    message: "Missing X-Session-Id header.",
                 });
             }
 
-            let numbersToCheck = numbers;
+            const game = await gameStore.game.findUnique({
+                where: { id: gameId },
+            });
 
-            if (typeof gameId === "string") {
-                const sessionId = req.header("X-Session-Id");
-
-                if (!sessionId) {
-                    return res.status(400).json({
-                        valid: false,
-                        message: "Missing X-Session-Id header.",
-                    });
-                }
-
-                const game = await gameStore.game.findUnique({
-                    where: { id: gameId },
-                });
-
-                if (!game) {
-                    return res.status(404).json({
-                        valid: false,
-                        message: "Game not found.",
-                    });
-                }
-
-                if (
-                    game.numbers.length !== numbers.length ||
-                    !game.numbers.every((number, index) => number === numbers[index])
-                ) {
-                    return res.status(400).json({
-                        valid: false,
-                        message: "Submitted numbers do not match the saved game.",
-                    });
-                }
-
-                if (game.status !== "IN_PROGRESS") {
-                    return res.status(400).json({
-                        valid: false,
-                        message: "This game is not in progress.",
-                    });
-                }
-
-                numbersToCheck = game.numbers;
-            }
-
-            const result = checkAnswer(expression, numbersToCheck);
-
-            if (gameId !== undefined && typeof gameId !== "string") {
-                return res.status(400).json({
+            if (!game || game.sessionId !== sessionId) {
+                return reply(404, {
                     valid: false,
-                    message: "gameId must be a string.",
+                    message: "Game not found.",
                 });
             }
 
-            if (typeof gameId === "string") {
-                await gameStore.gameAttempt.create({
+            if (
+                game.numbers.length !== numbers.length ||
+                !game.numbers.every((number, index) => number === numbers[index])
+            ) {
+                return reply(400, {
+                    valid: false,
+                    message: "Submitted numbers do not match the saved game.",
+                });
+            }
+
+            if (game.status !== "IN_PROGRESS") {
+                return reply(400, {
+                    valid: false,
+                    message: "This game is not in progress.",
+                });
+            }
+
+            numbersToCheck = game.numbers;
+        }
+
+        const result = checkAnswer(expression, numbersToCheck);
+
+        if (typeof gameId === "string") {
+            await gameStore.gameAttempt.create({
+                data: {
+                    gameId,
+                    expression,
+                    isCorrect: result.valid,
+                },
+            });
+
+            if (result.valid) {
+                await gameStore.game.update({
+                    where: { id: gameId, status: "IN_PROGRESS", sessionId: req.header("X-Session-Id") },
                     data: {
-                        gameId,
-                        expression,
-                        isCorrect: result.valid,
+                        status: "COMPLETED",
+                        completedAt: new Date(),
                     },
                 });
-
-                if (result.valid) {
-                    await gameStore.game.update({
-                        where: { id: gameId },
-                        data: {
-                            status: "COMPLETED",
-                            completedAt: new Date(),
-                        },
-                    });
-                }
             }
-
-            return res.json(result);
-        } catch (error) {
-            next(error);
         }
-    });
+
+        return reply(200, result);
+
+    }));
 
     app.use(errorHandler);
 
