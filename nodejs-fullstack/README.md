@@ -369,32 +369,93 @@ The backend has been verified locally with PostgreSQL, including:
 - Aggregate statistics.
 - Cursor-based pagination across multiple pages.
 
-The backend automated test suite passed 56 tests during verification.
+The current checks pass 69 backend unit/HTTP tests, four PostgreSQL integration
+tests, and 46 frontend tests. PostgreSQL integration checks use isolated test
+schemas and roll back their changes.
 
 ## Project Structure
 
 ```text
 nodejs-fullstack/
-├── backend/
-│   ├── prisma/
-│   │   ├── migrations/
-│   │   └── schema.prisma
-│   ├── src/
-│   │   ├── generated/
-│   │   ├── answerChecker.ts
-│   │   ├── app.ts
-│   │   ├── db.ts
-│   │   ├── game.ts
-│   │   ├── server.ts
-│   │   └── *.test.ts
-│   └── package.json
-│   ├── prisma7.config.ts
-│   └── tsconfig.build.json
-│   └── tsconfig.json
-└── frontend/
-    ├── src/
-    └── package.json
+  backend/
+    prisma/                     # Schema, migrations, legacy upgrade
+    src/
+      app.ts                    # Express composition
+      server.ts                 # HTTP listener
+      config/env.ts             # Environment access
+      database/                 # Prisma client, transactions, store contract
+      features/games/
+        game.routes.ts
+        game.controller.ts
+        game.validation.ts
+        game.service.ts
+        game.repository.ts
+        game.types.ts
+        game.errors.ts
+        answerChecker.ts
+        puzzleGenerator.ts
+        *.test.ts
+      generated/prisma/
+      http/httpError.ts
+      middleware/               # Session and error handling
+      tests/                    # HTTP and PostgreSQL integration tests
+    package.json
+    prisma7.config.ts
+    tsconfig.build.json
+    tsconfig.json
+  frontend/
+    src/
+      App.tsx                   # Application entry component
+      App.test.tsx              # Player flow regression tests
+      features/game/
+        GamePage.tsx            # Compose the game screen
+        game.types.ts
+        game.css
+        api/gameApi.ts          # Typed game API methods
+        components/             # Cards, editor, controls, timer, history
+        hooks/                  # Game, timer, history, keyboard shortcuts
+        logic/                  # Solver, examples, expression editing
+        state/                  # Game reducer and transition tests
+      lib/                      # Session storage and HTTP client
+      utils/                    # Time formatting and success sound
+      main.tsx
+      index.css
+    package.json
 ```
+
+### Backend request flow
+
+Requests pass through Express JSON/CORS middleware, the game router, session
+and input validation, a controller, the game service, the game repository,
+and Prisma/PostgreSQL. Error middleware preserves the API response formats.
+
+- `app.ts` composes middleware, repository, service, and routes; `server.ts` starts the listener.
+- Controllers translate validated HTTP input into service calls and send responses after completion.
+- Services own ownership checks, game lifecycle rules, pagination, and transaction boundaries. They have no Express or Prisma dependency.
+- Repositories implement business-oriented persistence operations and translate database errors. Prisma query shapes stay in this layer.
+- `database/transaction.ts` implements atomic transactions and PostgreSQL session locks. Service transactions use a transaction-scoped repository.
+- Pure game logic and service tests live beside the game feature. HTTP and PostgreSQL integration tests live in `src/tests`.
+
+The service depends on the `GameRepository` interface. HTTP tests can continue
+injecting a lightweight `GameStore` into `createApp`; the composition root wraps
+it in the same repository adapter used by the application. Existing endpoint
+paths, request/response formats, and database migrations are unchanged.
+
+### Frontend flow
+
+`App.tsx` renders `GamePage`, which connects presentation components to feature
+hooks. Components receive values and callbacks; they do not fetch data or
+manage session headers.
+
+- `lib/apiClient.ts` handles JSON requests, session headers, and HTTP errors. `features/game/api/gameApi.ts` defines the game endpoints and their types.
+- `useGame` coordinates loading, submission, expression editing, and feedback. The game reducer applies related state transitions together.
+- `useGameHistory` independently loads and refreshes history; `useGameTimer` owns interval cleanup; `useGameShortcuts` owns keyboard event listeners.
+- Request guards prevent overlapping mutations. Version checks ignore obsolete responses and responses received after unmount, including Strict Mode cleanup.
+- `logic/` contains pure arithmetic, solver, and expression helpers. Existing styles and public API contracts are preserved.
+
+Frontend tests include pure game logic, reducer transitions, API/session
+behavior, and full player flows through the real React components. Run them
+once with `npm test -- --run` from `frontend`.
 
 ## Project Goals
 

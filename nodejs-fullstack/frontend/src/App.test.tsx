@@ -60,6 +60,7 @@ afterEach(async () => {
   await act(async () => { root.unmount() })
   container.remove()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 test('initialization resumes using GET even with Strict Mode enabled', async () => {
@@ -115,4 +116,72 @@ test('server validation messages are preserved and controls recover after an err
   await reply(pending[1], { valid: false, message: 'This game is not in progress.' }, 400)
   expect(container.querySelector('[role="status"]')?.textContent).toBe('This game is not in progress.')
   expect(button('New Game').disabled).toBe(false)
+})
+
+test('card and operator components build an expression and submit normalized arithmetic', async () => {
+  await ready()
+  const card = (number: string) => {
+    const found = Array.from(container.querySelectorAll<HTMLElement>('.playing-card'))
+      .find(element => element.querySelector('.card-number')?.textContent === number)
+    if (!found) throw new Error(`Missing card ${number}`)
+    return found
+  }
+  for (const click of [() => card('3').click(), () => button('+').click(), () => card('5').click(),
+    () => button('×').click(), () => card('4').click(), () => button('+').click(), () => card('1').click()]) {
+    await act(async () => { click() })
+  }
+  expect(container.querySelector<HTMLInputElement>('#expression')?.value).toBe('3 + 5 × 4 + 1')
+  await act(async () => { button('Check Answer').click() })
+  expect(JSON.parse(String(pending[1].options?.body))).toEqual({
+    gameId: 'saved-game', numbers: [3, 5, 4, 1], expression: '3 + 5 * 4 + 1',
+  })
+  await reply(pending[1], { valid: true, message: 'Correct!' })
+})
+
+test('the expression editor enforces card counts and supports backspace and clear', async () => {
+  await ready()
+  const firstCard = container.querySelector<HTMLElement>('.playing-card')!
+  await act(async () => { firstCard.click() })
+  await act(async () => { firstCard.click() })
+  expect(container.querySelector<HTMLInputElement>('#expression')?.value).toBe('3')
+  expect(container.querySelector('[role="status"]')?.textContent).toContain('already been used')
+  await act(async () => { button('⌫').click() })
+  expect(container.querySelector<HTMLInputElement>('#expression')?.value).toBe('')
+  await act(async () => { firstCard.click() })
+  await act(async () => { button('Clear').click() })
+  expect(container.querySelector<HTMLInputElement>('#expression')?.value).toBe('')
+})
+
+test('the timer starts after loading, stops at Got it, and resets for a replacement game', async () => {
+  vi.useFakeTimers()
+  await mount()
+  await act(async () => { vi.advanceTimersByTime(3000) })
+  expect(container.querySelector('.timer-value')?.textContent).toBe('00:00')
+  await reply(pending[0], { numbers: [3, 5, 4, 1], gameId: 'saved-game' })
+  await act(async () => { vi.advanceTimersByTime(2000) })
+  expect(container.querySelector('.timer-value')?.textContent).toBe('00:02')
+  await act(async () => { button('Got it!').click() })
+  await act(async () => { vi.advanceTimersByTime(3000) })
+  expect(container.querySelector('.timer-value')?.textContent).toBe('00:02')
+  expect(container.querySelector('.timer-label')?.textContent).toBe('Thinking time')
+  await act(async () => { button('New Game').click() })
+  await reply(pending[1], { numbers: [1, 2, 3, 4], gameId: 'new-game' })
+  expect(container.querySelector('.timer-value')?.textContent).toBe('00:00')
+  await act(async () => { vi.advanceTimersByTime(1000) })
+  expect(container.querySelector('.timer-value')?.textContent).toBe('00:01')
+})
+
+test('a late history response cannot replace a more recent refresh', async () => {
+  const histories: PendingRequest[] = []
+  vi.stubGlobal('fetch', vi.fn((url: string, options?: RequestInit) => new Promise<Response>(resolve => {
+    if (url.endsWith('/api/games')) histories.push({ url, options, resolve })
+    else pending.push({ url, options, resolve })
+  })))
+  await ready()
+  expect(histories).toHaveLength(2)
+  const game = { id: 'recent', numbers: [3, 5, 4, 1], status: 'IN_PROGRESS', attemptCount: 0, createdAt: '2026-10-28T12:00:00Z', completedAt: null }
+  await reply(histories[1], { games: [game], hasMore: false, nextCursor: null })
+  await reply(histories[0], { games: [], hasMore: false, nextCursor: null })
+  expect(container.querySelectorAll('.history-table tbody tr')).toHaveLength(1)
+  expect(container.querySelector('.history-table')?.textContent).toContain('3, 5, 4, 1')
 })

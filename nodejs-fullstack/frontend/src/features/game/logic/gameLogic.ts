@@ -1,8 +1,5 @@
-export interface AnswerResult {
-  valid: boolean
-  message: string
-  value?: number
-}
+import type { AnswerResult } from '../game.types'
+export type { AnswerResult } from '../game.types'
 
 type Token =
   | { type: 'number'; value: number }
