@@ -6,12 +6,45 @@ import { findAllSolutions } from './game/gameSolver'
 import { getRandomExample } from './game/exampleGenerator'
 import './App.css'
 
+
+type GameStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'
+
+interface GameHistoryItem {
+  id: string
+  numbers: number[]
+  status: GameStatus
+  createdAt: string
+  completedAt: string | null
+  attemptCount: number
+}
+
+interface GameHistoryResponse {
+  games: GameHistoryItem[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
 const DEFAULT_MESSAGE = 'Use all four numbers to make 24.'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+const SESSION_STORAGE_KEY = '24-game-session-id'
+
+function getSessionId(): string {
+  let sessionId = localStorage.getItem(SESSION_STORAGE_KEY)
+
+  if (!sessionId) {
+    sessionId = crypto.randomUUID()
+    localStorage.setItem(SESSION_STORAGE_KEY, sessionId)
+  }
+
+  return sessionId
+}
 
 function App() {
   const [cards, setCards] = useState<number[]>([3, 4, 6, 8])
   const [gameId, setGameId] = useState<string | null>(null)
+  const [games, setGames] = useState<GameHistoryItem[]>([])
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
   const [expression, setExpression] = useState('')
   const expressionInputRef = useRef<HTMLInputElement>(null)
   const [exampleExpression, setExampleExpression] = useState(() =>
@@ -28,6 +61,7 @@ function App() {
 
   useEffect(() => {
     void newGame()
+    void loadGameHistory()
   }, [])
 
   useEffect(() => {
@@ -49,6 +83,31 @@ function App() {
       window.clearInterval(intervalId)
     }
   }, [isTimerRunning])
+
+  async function loadGameHistory() {
+    setIsHistoryLoading(true)
+    setHistoryError('')
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/games`, {
+        headers: {
+          'X-Session-Id': getSessionId(),
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to load game history.')
+      }
+
+      const data: GameHistoryResponse = await response.json()
+      setGames(data.games)
+    } catch (error) {
+      console.error('Failed to load game history:', error)
+      setHistoryError('Unable to load game history. Please try again.')
+    } finally {
+      setIsHistoryLoading(false)
+    }
+  }
 
   function resetFeedback() {
     setMessage(DEFAULT_MESSAGE)
@@ -107,7 +166,12 @@ function App() {
   async function newGame() {
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/puzzle`)
+      const response = await fetch(`${API_BASE_URL}/api/puzzle`, {
+        method: 'POST',
+        headers: {
+          'X-Session-Id': getSessionId(),
+        },
+      })
 
       if (!response.ok) {
         throw new Error('Failed to generate a new puzzle.')
@@ -167,6 +231,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Session-Id': getSessionId(),
         },
         body: JSON.stringify({
           numbers: cards,
@@ -471,9 +536,64 @@ function App() {
 
       </section>
 
-      <footer className="game-footer">
-        <p>Use each card exactly once. You may use +, −, ×, ÷, and parentheses.</p>
-      </footer>
+
+      <section className="history-section" aria-label="Game history">
+        <div className="history-header">
+          <h2>Game History</h2>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={loadGameHistory}
+            disabled={isHistoryLoading}
+          >
+            {isHistoryLoading ? 'Loading...' : 'Refresh History'}
+          </button>
+        </div>
+
+        {historyError && (
+          <p className="history-error" role="alert">
+            {historyError}
+          </p>
+        )}
+
+        {!historyError && !isHistoryLoading && games.length === 0 && (
+          <p>No saved games yet. Select Refresh History to load your games.</p>
+        )}
+
+        {games.length > 0 && (
+          <div className="history-table-container">
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th scope="col">Numbers</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Attempts</th>
+                  <th scope="col">Started</th>
+                </tr>
+              </thead>
+              <tbody>
+                {games.map((game) => (
+                  <tr key={game.id}>
+                    <td>{game.numbers.join(', ')}</td>
+                    <td>
+                      <span
+                        className={`history-status ${game.status.toLowerCase().replace('_', '-')}`}
+                      >
+                        {game.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td>{game.attemptCount}</td>
+                    <td>
+                      {new Date(game.createdAt).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
     </main>
   )
 }

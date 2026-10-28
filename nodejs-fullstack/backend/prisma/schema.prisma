@@ -1,7 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
   provider = "prisma-client"
@@ -18,13 +14,23 @@ enum GameStatus {
   ABANDONED
 }
 
+model GameSession {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  games     Game[]
+}
+
 model Game {
   id          String        @id @default(cuid())
+  sessionId   String
   numbers     Int[]
   status      GameStatus    @default(IN_PROGRESS)
   createdAt   DateTime      @default(now())
   completedAt DateTime?
+  session     GameSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   attempts    GameAttempt[]
+
+  @@index([sessionId, createdAt])
 }
 
 model GameAttempt {

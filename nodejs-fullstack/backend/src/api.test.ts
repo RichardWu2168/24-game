@@ -13,6 +13,7 @@ function createFakeStore(): GameStore {
 
             findUnique: async ({ where }) => ({
                 id: where.id,
+                sessionId: "test-session-id",
                 numbers: [3, 5, 4, 1],
                 status: "IN_PROGRESS",
             }),
@@ -52,14 +53,31 @@ async function withServer(
 
 test("GET /api/puzzle returns a valid solvable puzzle", async () => {
     const fakeStore = {
+        gameSession: {
+            upsert: async (args: { where: { id: string } }) => ({
+                id: args.where.id,
+            }),
+        },
+
         game: {
-            create: async (_args: { data: { numbers: number[] } }) => ({
+            findFirst: async (_args: {
+                where: {
+                    sessionId: string;
+                    status: "IN_PROGRESS";
+                };
+            }) => null,
+            create: async (_args: {
+                data: {
+                    numbers: number[];
+                    session: { connect: { id: string } };
+                };
+            }) => ({
                 id: "test-game-id",
             }),
             update: async (_args: {
                 where: { id: string };
                 data: {
-                    status?: "COMPLETED";
+                    status?: "COMPLETED" | "ABANDONED";
                     completedAt?: Date;
                 };
             }) => ({}),
@@ -67,6 +85,7 @@ test("GET /api/puzzle returns a valid solvable puzzle", async () => {
                 where: { id: string };
             }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
                 numbers: [3, 5, 4, 1],
                 status: "IN_PROGRESS" as const,
             }),
@@ -83,7 +102,12 @@ test("GET /api/puzzle returns a valid solvable puzzle", async () => {
     };
 
     await withServer(async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/api/puzzle`);
+        const response = await fetch(`${baseUrl}/api/puzzle`, {
+            method: "POST",
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
 
         assert.equal(response.status, 200);
 
@@ -103,11 +127,251 @@ test("GET /api/puzzle returns a valid solvable puzzle", async () => {
     }, createApp(fakeStore));
 });
 
+test("POST /api/puzzle abandons the previous active game in the same session", async () => {
+    const games: {
+        id: string;
+        numbers: number[];
+        sessionId: string;
+        status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
+    }[] = [];
+
+    let nextGameId = 1;
+
+    const fakeStore = {
+        gameSession: {
+            upsert: async (args: { where: { id: string } }) => ({
+                id: args.where.id,
+            }),
+        },
+        game: {
+            findFirst: async (args: {
+                where: { sessionId: string; status: "IN_PROGRESS" };
+            }) =>
+                games.find(
+                    (game) =>
+                        game.sessionId === args.where.sessionId &&
+                        game.status === args.where.status,
+                ) ?? null,
+
+            create: async (args: {
+                data: {
+                    numbers: number[];
+                    session: { connect: { id: string } };
+                };
+            }) => {
+                const game = {
+                    id: `test-game-${nextGameId++}`,
+                    numbers: args.data.numbers,
+                    sessionId: args.data.session.connect.id,
+                    status: "IN_PROGRESS" as const,
+                };
+
+                games.push(game);
+                return { id: game.id };
+            },
+
+            update: async (args: {
+                where: { id: string };
+                data: {
+                    status?: "COMPLETED" | "ABANDONED";
+                    completedAt?: Date;
+                };
+            }) => {
+                const game = games.find(
+                    (item) => item.id === args.where.id,
+                );
+
+                if (game && args.data.status) {
+                    game.status = args.data.status;
+                }
+
+                return game ?? {};
+            },
+
+            findUnique: async (args: { where: { id: string } }) => {
+                const game = games.find(
+                    (item) => item.id === args.where.id,
+                );
+
+                if (!game) return null;
+
+                return {
+                    id: game.id,
+                    sessionId: "test-session-id",
+                    numbers: game.numbers,
+                    status: game.status,
+                };
+            },
+        },
+        gameAttempt: {
+            create: async () => ({}),
+        },
+    };
+
+    await withServer(async (baseUrl) => {
+        async function requestPuzzle(
+            sessionId: string,
+            method: "GET" | "POST" = "GET",
+        ) {
+            const response = await fetch(`${baseUrl}/api/puzzle`, {
+                method,
+                headers: { "X-Session-Id": sessionId },
+            });
+
+            assert.equal(response.status, 200);
+
+            return await response.json() as {
+                numbers: number[];
+                gameId: string;
+            };
+        }
+        const first = await requestPuzzle("session-a");
+        const second = await requestPuzzle("session-a", "POST");
+
+        assert.notEqual(first.gameId, second.gameId);
+        assert.equal(
+            games.find((game) => game.id === first.gameId)?.status,
+            "ABANDONED",
+        );
+        assert.equal(
+            games.find((game) => game.id === second.gameId)?.status,
+            "IN_PROGRESS",
+        );
+
+        const otherSessionGame = await requestPuzzle("session-b", "POST");
+        assert.equal(
+            games.find((game) => game.id === otherSessionGame.gameId)?.status,
+            "IN_PROGRESS",
+        );
+        assert.equal(
+            games.find((game) => game.id === second.gameId)?.status,
+            "IN_PROGRESS",
+        );
+    }, createApp(fakeStore));
+});
+
+
+test("repeated GET /api/puzzle resumes the active game without creating or abandoning another", async () => {
+    const games: {
+        id: string;
+        numbers: number[];
+        sessionId: string;
+        status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
+    }[] = [];
+
+    let nextGameId = 1;
+    let createCount = 0;
+    let updateCount = 0;
+
+    const fakeStore = {
+        gameSession: {
+            upsert: async (args: { where: { id: string } }) => ({
+                id: args.where.id,
+            }),
+        },
+        game: {
+            findFirst: async (args: {
+                where: { sessionId: string; status: "IN_PROGRESS" };
+            }) =>
+                games.find(
+                    (game) =>
+                        game.sessionId === args.where.sessionId &&
+                        game.status === args.where.status,
+                ) ?? null,
+
+            create: async (args: {
+                data: {
+                    numbers: number[];
+                    session: { connect: { id: string } };
+                };
+            }) => {
+                createCount++;
+
+                const game = {
+                    id: `test-game-${nextGameId++}`,
+                    numbers: args.data.numbers,
+                    sessionId: args.data.session.connect.id,
+                    status: "IN_PROGRESS" as const,
+                };
+
+                games.push(game);
+                return { id: game.id };
+            },
+
+            update: async (args: {
+                where: { id: string };
+                data: {
+                    status?: "COMPLETED" | "ABANDONED";
+                    completedAt?: Date;
+                };
+            }) => {
+                updateCount++;
+
+                const game = games.find(
+                    (item) => item.id === args.where.id,
+                );
+
+                if (game && args.data.status) {
+                    game.status = args.data.status;
+                }
+
+                return game ?? {};
+            },
+
+            findUnique: async (args: { where: { id: string } }) => {
+                const game = games.find(
+                    (item) => item.id === args.where.id,
+                );
+
+                if (!game) return null;
+
+                return {
+                    id: game.id,
+                    sessionId: game.sessionId,
+                    numbers: game.numbers,
+                    status: game.status,
+                };
+            },
+        },
+        gameAttempt: {
+            create: async () => ({}),
+        },
+    };
+
+    await withServer(async (baseUrl) => {
+        async function getPuzzle() {
+            const response = await fetch(`${baseUrl}/api/puzzle`, {
+                headers: { "X-Session-Id": "regression-session" },
+            });
+
+            assert.equal(response.status, 200);
+
+            return await response.json() as {
+                numbers: number[];
+                gameId: string;
+            };
+        }
+
+        const first = await getPuzzle();
+        const second = await getPuzzle();
+
+        assert.equal(second.gameId, first.gameId);
+        assert.deepEqual(second.numbers, first.numbers);
+        assert.equal(createCount, 1);
+        assert.equal(updateCount, 0);
+        assert.equal(games.length, 1);
+        assert.equal(games[0].status, "IN_PROGRESS");
+    }, createApp(fakeStore));
+});
+
 test("POST /api/check-answer accepts a correct answer", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 numbers: [3, 5, 4, 1],
                 expression: "(3 + 5) * (4 - 1)",
@@ -132,7 +396,10 @@ test("POST /api/check-answer rejects an incorrect answer", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 numbers: [1, 2, 3, 4],
                 expression: "1 + 2 + 3 + 4",
@@ -157,7 +424,10 @@ test("POST /api/check-answer rejects malformed request fields", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 numbers: "1,2,3,4",
                 expression: "1 + 2 + 3 + 4",
@@ -180,7 +450,10 @@ test("POST /api/check-answer returns JSON for malformed JSON", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: '{"numbers":[1,2,3,4],"expression":',
         });
 
@@ -204,7 +477,10 @@ test("POST /api/check-answer rejects an invalid card count", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 numbers: [1, 2, 3],
                 expression: "1 + 2 + 3",
@@ -227,7 +503,10 @@ test("POST /api/check-answer rejects card values outside 1 to 10", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 numbers: [0, 2, 3, 11],
                 expression: "0 + 2 + 3 + 11",
@@ -250,7 +529,10 @@ test("POST /api/check-answer rejects a missing expression", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 numbers: [3, 5, 4, 1],
             }),
@@ -272,7 +554,10 @@ test("POST /api/check-answer rejects an expression that is too long", async () =
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 numbers: [3, 5, 4, 1],
                 expression: "1".repeat(101),
@@ -343,6 +628,7 @@ test("missing request fields return 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({}),
         });
@@ -368,6 +654,7 @@ test("invalid card numbers return 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 3, 11],
@@ -396,6 +683,7 @@ test("a missing expression returns 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 3, 4],
@@ -425,6 +713,7 @@ test("expressions longer than 100 characters return 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 3, 4],
@@ -453,6 +742,7 @@ test("invalid expression syntax returns a validation error", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 3, 4],
@@ -478,6 +768,7 @@ test("malformed JSON returns 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: '{"numbers":[1,2,3,4],"expression":',
         });
@@ -500,6 +791,7 @@ test("decimal card numbers return 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 2.5, 4],
@@ -528,6 +820,7 @@ test("negative card numbers return 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [-1, 2, 3, 4],
@@ -556,6 +849,7 @@ test("fewer than four card numbers return 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 3],
@@ -584,6 +878,7 @@ test("more than four card numbers return 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 3, 4, 5],
@@ -612,6 +907,7 @@ test("card number 10 is accepted by input validation", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 3, 10],
@@ -639,6 +935,7 @@ test("numbers provided as a string return 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: "1,2,3,4",
@@ -667,6 +964,7 @@ test("a non-string expression returns 400", async () => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
             },
             body: JSON.stringify({
                 numbers: [1, 2, 3, 4],
@@ -712,6 +1010,7 @@ test("POST /api/check-answer records an answer attempt", async () => {
                 where: { id: string };
             }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
                 numbers: [3, 5, 4, 1],
                 status: "IN_PROGRESS" as const,
             }),
@@ -733,7 +1032,10 @@ test("POST /api/check-answer records an answer attempt", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 gameId: "test-game-id",
                 numbers: [3, 5, 4, 1],
@@ -781,6 +1083,7 @@ test("POST /api/check-answer records an incorrect answer attempt", async () => {
                 where: { id: string };
             }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
                 numbers: [1, 2, 3, 4],
                 status: "IN_PROGRESS" as const,
             }),
@@ -802,7 +1105,10 @@ test("POST /api/check-answer records an incorrect answer attempt", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 gameId: "test-game-id",
                 numbers: [1, 2, 3, 4],
@@ -858,6 +1164,7 @@ test("POST /api/check-answer marks a game completed after a correct answer", asy
                 where: { id: string };
             }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
                 numbers: [3, 5, 4, 1],
                 status: "IN_PROGRESS" as const,
             }),
@@ -876,7 +1183,10 @@ test("POST /api/check-answer marks a game completed after a correct answer", asy
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 gameId: "test-game-id",
                 numbers: [3, 5, 4, 1],
@@ -922,6 +1232,7 @@ test("POST /api/check-answer does not complete a game after an incorrect answer"
                 where: { id: string };
             }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
                 numbers: [1, 2, 3, 4],
                 status: "IN_PROGRESS" as const,
             }),
@@ -940,7 +1251,10 @@ test("POST /api/check-answer does not complete a game after an incorrect answer"
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 gameId: "test-game-id",
                 numbers: [1, 2, 3, 4],
@@ -991,7 +1305,10 @@ test("POST /api/check-answer returns 404 for an unknown game", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 gameId: "unknown-game-id",
                 numbers: [3, 5, 4, 1],
@@ -1019,6 +1336,7 @@ test("POST /api/check-answer rejects numbers that differ from the saved game", a
             }),
             findUnique: async (_args: { where: { id: string } }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
                 numbers: [3, 5, 4, 1],
                 status: "IN_PROGRESS" as const,
             }),
@@ -1044,7 +1362,10 @@ test("POST /api/check-answer rejects numbers that differ from the saved game", a
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 gameId: "test-game-id",
                 numbers: [1, 2, 3, 4],
@@ -1075,6 +1396,7 @@ test("POST /api/check-answer rejects an already completed game", async () => {
             }),
             findUnique: async (_args: { where: { id: string } }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
                 numbers: [3, 5, 4, 1],
                 status: "COMPLETED" as const,
             }),
@@ -1100,7 +1422,10 @@ test("POST /api/check-answer rejects an already completed game", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/api/check-answer`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Session-Id": "test-session-id",
+            },
             body: JSON.stringify({
                 gameId: "test-game-id",
                 numbers: [3, 5, 4, 1],
@@ -1138,6 +1463,7 @@ test("GET /api/games/:id returns game details and answer attempts", async () => 
                 };
             }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
                 numbers: [3, 5, 4, 1],
                 status: "COMPLETED" as const,
                 createdAt,
@@ -1177,7 +1503,11 @@ test("GET /api/games/:id returns game details and answer attempts", async () => 
     };
 
     await withServer(async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/api/games/test-game-id`);
+        const response = await fetch(`${baseUrl}/api/games/test-game-id`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
 
         assert.equal(response.status, 200);
 
@@ -1211,6 +1541,7 @@ test("GET /api/games/:id returns 404 when the game does not exist", async () => 
         game: {
             create: async (_args: { data: { numbers: number[] } }) => ({
                 id: "test-game-id",
+                sessionId: "test-session-id",
             }),
             findUnique: async (_args: {
                 where: { id: string };
@@ -1240,7 +1571,11 @@ test("GET /api/games/:id returns 404 when the game does not exist", async () => 
     };
 
     await withServer(async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/api/games/nonexistent-id`);
+        const response = await fetch(`${baseUrl}/api/games/nonexistent-id`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
 
         assert.equal(response.status, 404);
 
@@ -1255,8 +1590,11 @@ test("GET /api/games/:id returns 404 when the game does not exist", async () => 
 test("rejects an invalid game history limit", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(
-            `${baseUrl}/api/games?limit=101`,
-        );
+            `${baseUrl}/api/games?limit=101`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
 
         assert.equal(response.status, 400);
 
@@ -1329,7 +1667,11 @@ test("lists recent games with their attempt counts", async () => {
     };
 
     await withServer(async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/api/games`);
+        const response = await fetch(`${baseUrl}/api/games`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
         const body = await response.json() as {
             games: {
                 id: string;
@@ -1380,7 +1722,11 @@ test("returns game statistics", async () => {
     };
 
     await withServer(async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/api/stats`);
+        const response = await fetch(`${baseUrl}/api/stats`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
         const body = await response.json() as {
             totalGames: number;
             completedGames: number;
@@ -1427,7 +1773,11 @@ test("returns zero accuracy when there are no attempts", async () => {
     };
 
     await withServer(async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/api/stats`);
+        const response = await fetch(`${baseUrl}/api/stats`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
         const body = await response.json() as {
             totalAttempts: number;
             accuracyPercent: number;
@@ -1508,8 +1858,11 @@ test("paginates game history using a cursor", async () => {
 
     await withServer(async (baseUrl) => {
         const firstResponse = await fetch(
-            `${baseUrl}/api/games?limit=2`,
-        );
+            `${baseUrl}/api/games?limit=2`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
         const firstBody = await firstResponse.json() as {
             games: { id: string }[];
             nextCursor: string | null;
@@ -1525,8 +1878,11 @@ test("paginates game history using a cursor", async () => {
         assert.equal(firstBody.nextCursor, "game-2");
 
         const secondResponse = await fetch(
-            `${baseUrl}/api/games?limit=2&cursor=${firstBody.nextCursor}`,
-        );
+            `${baseUrl}/api/games?limit=2&cursor=${firstBody.nextCursor}`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
         const secondBody = await secondResponse.json() as {
             games: { id: string }[];
             nextCursor: string | null;
@@ -1564,8 +1920,11 @@ test("rejects an unknown game history cursor", async () => {
 
     await withServer(async (baseUrl) => {
         const response = await fetch(
-            `${baseUrl}/api/games?cursor=nonexistent-id`,
-        );
+            `${baseUrl}/api/games?cursor=nonexistent-id`, {
+            headers: {
+                "X-Session-Id": "test-session-id",
+            },
+        });
 
         const body = await response.json() as {
             message: string;

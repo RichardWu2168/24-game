@@ -7,17 +7,28 @@ import { prisma } from "./db.js";
 
 
 export interface GameStore {
+    gameSession?: {
+        upsert(args: {
+            where: { id: string };
+            create: { id: string };
+            update: Record<string, never>;
+        }): Promise<{ id: string }>;
+    };
+
     game: {
         create(args: {
             data: {
                 numbers: number[];
+                session: {
+                    connect: { id: string };
+                };
             };
         }): Promise<{ id: string }>;
 
         update(args: {
             where: { id: string };
             data: {
-                status?: "COMPLETED";
+                status?: "COMPLETED" | "ABANDONED";
                 completedAt?: Date;
             };
         }): Promise<unknown>;
@@ -33,6 +44,7 @@ export interface GameStore {
             };
         }): Promise<{
             id: string;
+            sessionId: string;
             numbers: number[];
             status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
             createdAt?: Date;
@@ -45,8 +57,19 @@ export interface GameStore {
             }[];
         } | null>;
 
+        findFirst?: (args: {
+            where: {
+                sessionId: string;
+                status: "IN_PROGRESS";
+            };
+        }) => Promise<{
+            id: string;
+            numbers: number[];
+            status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
+        } | null>;
 
         findMany?: (args: {
+            where: { sessionId: string };
             take: number;
             skip?: number;
             cursor?: {
@@ -76,6 +99,7 @@ export interface GameStore {
 
         count?: (args?: {
             where?: {
+                sessionId?: string;
                 status?: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
             };
         }) => Promise<number>;
@@ -94,8 +118,12 @@ export interface GameStore {
         count?: (args?: {
             where?: {
                 isCorrect?: boolean;
+                game?: {
+                    sessionId: string;
+                };
             };
         }) => Promise<number>;
+
     };
 }
 
@@ -111,7 +139,7 @@ export function createApp(gameStore: GameStore = prisma) {
         cors({
             origin: allowedOrigins,
             methods: ["GET", "POST"],
-            allowedHeaders: ["Content-Type"],
+            allowedHeaders: ["Content-Type", "X-Session-Id"],
         })
     );
 
@@ -124,25 +152,129 @@ export function createApp(gameStore: GameStore = prisma) {
         });
     });
 
-    app.get("/api/puzzle", async (_req, res, next) => {
+    const handlePuzzleRequest = async (
+        req: import("express").Request,
+        res: import("express").Response,
+        next: import("express").NextFunction,
+        forceNew: boolean,
+    ) => {
         try {
+            const sessionId = req.header("X-Session-Id");
+
+            if (!sessionId) {
+                res.status(400).json({
+                    error: "Missing X-Session-Id header.",
+                });
+                return;
+            }
+
+            if (!gameStore.gameSession) {
+                throw new Error("Session store is not configured.");
+            }
+
+            const session = await gameStore.gameSession.upsert({
+                where: { id: sessionId },
+                create: { id: sessionId },
+                update: {},
+            });
+
+            const findActiveGame = async () => {
+                if (!gameStore.game.findFirst) {
+                    throw new Error("Game store does not support finding active games.");
+                }
+
+                return gameStore.game.findFirst({
+                    where: {
+                        sessionId: session.id,
+                        status: "IN_PROGRESS",
+                    },
+                });
+            };
+
+            // GET resumes the existing game unless explicitly creating a new one.
+            if (!forceNew) {
+                const activeGame = await findActiveGame();
+
+                if (activeGame) {
+                    res.json({
+                        numbers: activeGame.numbers,
+                        gameId: activeGame.id,
+                    });
+                    return;
+                }
+            } else {
+                // POST starts a fresh game and abandons the previous unfinished game.
+                const activeGame = await findActiveGame();
+
+                if (activeGame) {
+                    await gameStore.game.update({
+                        where: { id: activeGame.id },
+                        data: { status: "ABANDONED" },
+                    });
+                }
+            }
+
             const numbers = generatePuzzle();
 
-            const game = await gameStore.game.create({
-                data: { numbers },
-            });
+            try {
+                const game = await gameStore.game.create({
+                    data: {
+                        numbers,
+                        session: {
+                            connect: { id: session.id },
+                        },
+                    },
+                });
 
-            res.json({
-                numbers,
-                gameId: game.id,
-            });
+                res.json({
+                    numbers,
+                    gameId: game.id,
+                });
+            } catch (error) {
+                // Two simultaneous GET requests may both observe no active game.
+                // If one wins the unique-index race, the other resumes that game.
+                const isUniqueConstraintError =
+                    typeof error === "object" &&
+                    error !== null &&
+                    "code" in error &&
+                    error.code === "P2002";
+
+                if (!forceNew && isUniqueConstraintError) {
+                    const activeGame = await findActiveGame();
+
+                    if (activeGame) {
+                        res.json({
+                            numbers: activeGame.numbers,
+                            gameId: activeGame.id,
+                        });
+                        return;
+                    }
+                }
+
+                throw error;
+            }
         } catch (error) {
             next(error);
         }
+    };
+
+    app.get("/api/puzzle", (req, res, next) => {
+        void handlePuzzleRequest(req, res, next, false);
+    });
+
+    app.post("/api/puzzle", (req, res, next) => {
+        void handlePuzzleRequest(req, res, next, true);
     });
 
     app.get("/api/games", async (req, res, next) => {
         try {
+            const sessionId = req.header("X-Session-Id");
+
+            if (!sessionId) {
+                return res.status(400).json({
+                    message: "Missing X-Session-Id header.",
+                });
+            }
             const rawLimit = req.query.limit;
             let limit = 20;
 
@@ -186,6 +318,9 @@ export function createApp(gameStore: GameStore = prisma) {
 
             try {
                 games = await gameStore.game.findMany({
+                    where: {
+                        sessionId,
+                    },
                     take: limit + 1,
                     ...(cursor
                         ? {
@@ -247,8 +382,57 @@ export function createApp(gameStore: GameStore = prisma) {
         }
     });
 
-    app.get("/api/stats", async (_req, res, next) => {
+
+    app.get("/api/games/:id", async (req, res, next) => {
         try {
+            const sessionId = req.header("X-Session-Id");
+
+            if (!sessionId) {
+                return res.status(400).json({
+                    message: "Missing X-Session-Id header.",
+                });
+            }
+
+            const game = await gameStore.game.findUnique({
+                where: { id: req.params.id },
+                include: {
+                    attempts: {
+                        orderBy: {
+                            createdAt: "asc",
+                        },
+                    },
+                },
+            });
+
+            if (!game || game.sessionId !== sessionId) {
+                return res.status(404).json({
+                    message: "Game not found.",
+                });
+            }
+
+            return res.json({
+                id: game.id,
+                numbers: game.numbers,
+                status: game.status,
+                createdAt: game.createdAt,
+                completedAt: game.completedAt ?? null,
+                attempts: game.attempts ?? [],
+            });
+        } catch (error) {
+            next(error);
+        }
+    });
+
+    app.get("/api/stats", async (req, res, next) => {
+        try {
+            const sessionId = req.header("X-Session-Id");
+
+            if (!sessionId) {
+                return res.status(400).json({
+                    message: "Missing X-Session-Id header.",
+                });
+            }
+
             const [
                 totalGames,
                 completedGames,
@@ -257,19 +441,26 @@ export function createApp(gameStore: GameStore = prisma) {
                 totalAttempts,
                 correctAttempts,
             ] = await Promise.all([
-                gameStore.game.count!(),
                 gameStore.game.count!({
-                    where: { status: "COMPLETED" },
+                    where: { sessionId },
                 }),
                 gameStore.game.count!({
-                    where: { status: "IN_PROGRESS" },
+                    where: { sessionId, status: "COMPLETED" },
                 }),
                 gameStore.game.count!({
-                    where: { status: "ABANDONED" },
+                    where: { sessionId, status: "IN_PROGRESS" },
                 }),
-                gameStore.gameAttempt.count!(),
+                gameStore.game.count!({
+                    where: { sessionId, status: "ABANDONED" },
+                }),
                 gameStore.gameAttempt.count!({
-                    where: { isCorrect: true },
+                    where: { game: { sessionId } },
+                }),
+                gameStore.gameAttempt.count!({
+                    where: {
+                        isCorrect: true,
+                        game: { sessionId },
+                    },
                 }),
             ]);
 
@@ -289,38 +480,6 @@ export function createApp(gameStore: GameStore = prisma) {
             });
         } catch (error) {
             return next(error);
-        }
-    });
-
-    app.get("/api/games/:id", async (req, res, next) => {
-        try {
-            const game = await gameStore.game.findUnique({
-                where: { id: req.params.id },
-                include: {
-                    attempts: {
-                        orderBy: {
-                            createdAt: "asc",
-                        },
-                    },
-                },
-            });
-
-            if (!game) {
-                return res.status(404).json({
-                    message: "Game not found.",
-                });
-            }
-
-            return res.json({
-                id: game.id,
-                numbers: game.numbers,
-                status: game.status,
-                createdAt: game.createdAt,
-                completedAt: game.completedAt ?? null,
-                attempts: game.attempts ?? [],
-            });
-        } catch (error) {
-            next(error);
         }
     });
 
@@ -372,6 +531,15 @@ export function createApp(gameStore: GameStore = prisma) {
             let numbersToCheck = numbers;
 
             if (typeof gameId === "string") {
+                const sessionId = req.header("X-Session-Id");
+
+                if (!sessionId) {
+                    return res.status(400).json({
+                        valid: false,
+                        message: "Missing X-Session-Id header.",
+                    });
+                }
+
                 const game = await gameStore.game.findUnique({
                     where: { id: gameId },
                 });

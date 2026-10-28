@@ -301,3 +301,72 @@ kbd {
   margin-left: 4px;
   opacity: .75;
 }
+
+.history-section {
+  width: 100%;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #ddd;
+  text-align: left;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.history-header h2 {
+  margin: 0;
+}
+
+.history-table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+.history-table th {
+  font-weight: 600;
+}
+
+.history-status {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.history-status.completed {
+  background: #e0f2e5;
+  color: #176534;
+}
+
+.history-status.in-progress {
+  background: #fff1cc;
+  color: #795600;
+}
+
+.history-status.abandoned {
+  background: #eee;
+  color: #444;
+}
+
+.history-error {
+  color: #b42318;
+}
