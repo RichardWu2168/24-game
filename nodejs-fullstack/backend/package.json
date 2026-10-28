@@ -7,8 +7,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
-    "test": "npm run build && node --test dist/game.test.js dist/api.test.js dist/answerChecker.test.js",
-    "test:db": "npm run build && node --test dist/database.integration.test.js"
+    "test": "npm run build && node --test dist/features/games/puzzleGenerator.test.js dist/features/games/game.service.test.js dist/tests/api.test.js dist/features/games/answerChecker.test.js",
+    "test:db": "npm run build && node --test dist/tests/database.integration.test.js"
   },
   "keywords": [],
   "license": "ISC",

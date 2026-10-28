@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
-import { prisma, withSessionTransaction } from "./db.js";
+import { prisma } from "../database/prisma.js";
+import { withSessionTransaction } from "../database/transaction.js";
 
 after(async () => { await prisma.$disconnect(); });
 

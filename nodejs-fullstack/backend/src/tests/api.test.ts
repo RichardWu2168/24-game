@@ -2,7 +2,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
-import { createApp, errorHandler, type GameStore } from "./app.js";
+import { createApp } from "../app.js";
+import { errorHandler } from "../middleware/errorHandler.js";
+import type { GameStore } from "../database/gameStore.js";
 
 test("a different session cannot submit an answer to another session's game", async () => {
     const store = createFakeStore();
@@ -265,7 +267,7 @@ test("GET /api/puzzle returns a valid solvable puzzle", async () => {
         ));
         assert.equal(body.gameId, "test-game-id");
 
-        const { canMake24 } = await import("./game.js");
+        const { canMake24 } = await import("../features/games/puzzleGenerator.js");
         assert.equal(canMake24(body.numbers), true);
     }, createApp(fakeStore));
 });
