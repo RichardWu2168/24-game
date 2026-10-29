@@ -3,12 +3,16 @@ export type GameStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'
 export interface Puzzle {
   numbers: number[]
   gameId: string
+  startedAt?: string
+  gotItAt?: string | null
+  capturedDurationSeconds?: number | null
 }
 
 export interface AnswerInput {
   numbers: number[]
   expression: string
   gameId: string
+  durationSeconds: number
 }
 
 export interface AnswerResult {
@@ -24,6 +28,7 @@ export interface GameHistoryItem {
   createdAt: string
   completedAt: string | null
   attemptCount: number
+  durationSeconds?: number | null
 }
 
 export interface GameHistoryResponse {

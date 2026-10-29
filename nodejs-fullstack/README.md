@@ -58,6 +58,8 @@ The backend runs locally on port `3000` by default.
 | Method | Endpoint            | Description                                   |
 | ------ | ------------------- | --------------------------------------------- |
 | GET    | `/api/health`       | Check backend availability                    |
+| DELETE | `/api/games`        | Clear completed/abandoned games for this session |
+| POST   | `/api/games/:id/got-it` | Capture thinking time for the active puzzle |
 | GET    | `/api/puzzle`       | Generate and save a new puzzle                |
 | POST   | `/api/check-answer` | Validate an expression and record an attempt  |
 | GET    | `/api/games`        | Retrieve paginated game history               |
@@ -94,7 +96,8 @@ Example request:
 {
   "numbers": [4, 5, 8, 5],
   "expression": "8*(4-(5/5))",
-  "gameId": "example-game-id"
+  "gameId": "example-game-id",
+  "durationSeconds": 18
 }
 ```
 
@@ -110,11 +113,79 @@ Answer attempts are persisted. An incorrect answer leaves the game in progress; 
 
 ### Game History and Pagination
 
+#### UI timer and saved duration
+
+The UI timer is the source of truth. It starts when the puzzle is displayed
+in the browser, uses the browser's own timestamps, and continues while tabs
+are switched. Its snapshot is stored locally so refreshing the same game
+restores that clock. Server `createdAt`, `startedAt`, `gotItAt`, and
+`completedAt` timestamps are metadata; none is used to calculate duration.
+
+**Got It** freezes the UI clock and sends its displayed whole seconds to
+`POST /api/games/:id/got-it` as `{ "durationSeconds": 18 }`, with the session
+header. The server stores this UI value in nullable
+`capturedDurationSeconds`; retries preserve the first capture. Got It does
+not complete the game, and the final `durationSeconds` remains null until
+a correct answer completes it.
+
+**Check Answer** includes the UI's frozen `durationSeconds` in its request.
+While checking, the display freezes at that same value, so network delays
+cannot add time. An incorrect answer resumes a previously running clock;
+a correct answer saves the submitted whole seconds. A duration previously
+captured through Got It takes precedence. If Show Solutions already froze
+the UI timer, Check Answer submits that same displayed value.
+
+History shows `00:18` or `02:35`, matching the UI clock. Unfinished and
+abandoned games keep `durationSeconds = null` and display a dash. Saved game
+completion requires a UI duration or an existing UI capture; the backend
+never substitutes creation-time arithmetic. Existing legacy records without
+recorded timing retain their null duration.
+
+The additive `20261028230000_add_ui_captured_duration` migration adds the
+nullable UI capture field without deleting or resetting existing records.
+
+The already-applied `20261028190000_add_game_duration` migration is preserved
+unchanged, including its recorded checksum. The forward migration
+`20261028220000_duration_seconds_integer` changes the PostgreSQL column to
+`INTEGER` using `floor(durationSeconds)::INTEGER`. It preserves NULLs, game
+records, attempts, sessions, and timestamps. Existing fractional durations
+are intentionally rounded down, matching the backend. Out-of-range values
+abort the transaction instead of being clamped or resetting records.
+
+Both `gotItAt` and `durationSeconds` remain nullable. The check constraint
+allows a non-null duration only for a `COMPLETED` game and requires it to be
+non-negative; the INTEGER column enforces whole seconds. Completed legacy
+games may still have a NULL duration.
+
+After reviewing the migration, apply it with
+`npx prisma migrate deploy --config prisma7.config.ts`, then regenerate the
+client with `npx prisma generate --config prisma7.config.ts`. Do not reset the
+database or edit the checksum of the original applied migration.
+
+#### Clearing history
+
+The **Clear History** button beside **Refresh History** clears finished games
+immediately, without a confirmation dialog. Clicking it sends `DELETE /api/games`
+with the browser's `X-Session-Id` header. The server deletes only completed and abandoned games for
+that session, with database cascade deletion of their answer attempts. Other
+sessions and the session identifier itself are preserved. The operation uses
+the same session lock and transaction as game creation and answer submission.
+
+The current in-progress game and its answer attempts are preserved, along
+with the displayed cards, expression, feedback, and timer. The timer continues
+while clearing; the history table retains the active game. Conflicting actions
+are briefly disabled while clearing; errors leave the existing records intact.
+No schema migration is required.
+
 ```http
 GET /api/games?limit=10
 ```
 
-The endpoint returns the most recent games first.
+The endpoint returns the most recent games first. The UI initially loads
+20 games; **Load More** appends older pages without duplicates. **Refresh
+History** returns to the newest page. Loading/clearing disables conflicting
+history actions. A missing, deleted, or foreign-session cursor returns HTTP
+400; refresh history to obtain a current cursor.
 
 - Default page size: 20 games.
 - Maximum page size: 100 games.
@@ -168,11 +239,71 @@ Stores each submitted expression, whether it was correct, its timestamp, and the
 
 Each game can have multiple answer attempts. Deleting a game also deletes its associated attempts through the configured relationship.
 
+## Quick Setup and Final Verification
+
+Tested with Node.js 24 and npm. From `nodejs-fullstack`, copy the example
+configuration files only if your local `.env` files do not already exist:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+Copy-Item frontend/.env.example frontend/.env
+```
+
+Set the backend `DATABASE_URL` to your local PostgreSQL connection string,
+then install the locked dependencies and generate Prisma Client:
+
+```bash
+npm run setup
+```
+
+Prepare/update PostgreSQL using the migration instructions below. Setup and
+verification do not reset the database or automatically apply migrations.
+Start the backend and frontend in separate terminals with
+`npm --prefix backend run dev` and `npm --prefix frontend run dev`.
+
+Run all checks from `nodejs-fullstack` with one command:
+
+```bash
+npm run verify
+```
+
+This generates Prisma Client, builds and type-checks the backend, validates
+the Prisma schema, runs backend unit/HTTP and PostgreSQL tests, then builds,
+lints, and tests the frontend. PostgreSQL must be running with migrations
+applied. Database tests use isolated or rolled-back test data.
+
+To additionally verify clean installs and production-only startup:
+
+```bash
+npm run smoke:production
+```
+
+The smoke check copies source and lockfiles into a temporary directory,
+without `.env`, generated files, `dist`, or `node_modules`. It installs and
+builds both packages, reinstalls backend dependencies with `--omit=dev`,
+starts the compiled backend on a free port, and checks `/api/health`. It uses
+an intentionally unreachable test database URL and makes no database queries.
+The temporary files and test process are cleaned up afterward. Registry
+access may be required to install dependencies.
+
+Backend configuration:
+
+- `DATABASE_URL`: required PostgreSQL URL.
+- `PORT`: defaults to 3000; use 0 only when a free test port is desired.
+- `FRONTEND_URL`: comma-separated browser origins allowed to call the API.
+
+Frontend `VITE_API_BASE_URL` may be empty for Vite's development proxy to port
+3000. Set it explicitly when using a different backend port or origin.
+
+The server handles SIGINT/SIGTERM by stopping new HTTP requests, draining
+existing requests, and then disconnecting Prisma. A 10-second deadline prevents
+shutdown from hanging indefinitely. Runtime `dotenv` is a production dependency.
+
 ## Local Development
 
 ### Prerequisites
 
-- Node.js and npm
+- Node.js 24 and npm
 - PostgreSQL
 - Git
 
@@ -369,8 +500,8 @@ The backend has been verified locally with PostgreSQL, including:
 - Aggregate statistics.
 - Cursor-based pagination across multiple pages.
 
-The current checks pass 69 backend unit/HTTP tests, four PostgreSQL integration
-tests, and 46 frontend tests. PostgreSQL integration checks use isolated test
+The current checks pass 82 backend unit/HTTP tests, nine PostgreSQL integration
+tests, and 60 frontend tests. PostgreSQL integration checks use isolated test
 schemas and roll back their changes.
 
 ## Project Structure
@@ -396,7 +527,7 @@ nodejs-fullstack/
         puzzleGenerator.ts
         *.test.ts
       generated/prisma/
-      http/httpError.ts
+      http/                     # HTTP errors and graceful shutdown
       middleware/               # Session and error handling
       tests/                    # HTTP and PostgreSQL integration tests
     package.json

@@ -11,7 +11,7 @@ export function createApp(gameStore?: GameStore) {
     const app = express();
     app.use(cors({
         origin: getAllowedOrigins(),
-        methods: ["GET", "POST"],
+        methods: ["GET", "POST", "DELETE"],
         allowedHeaders: ["Content-Type", "X-Session-Id"],
     }));
     app.use(express.json());

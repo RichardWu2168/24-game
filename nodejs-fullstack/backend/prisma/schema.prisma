@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -21,14 +20,17 @@ model GameSession {
 }
 
 model Game {
-  id          String        @id @default(cuid())
-  sessionId   String
-  numbers     Int[]
-  status      GameStatus    @default(IN_PROGRESS)
-  createdAt   DateTime      @default(now())
-  completedAt DateTime?
-  session     GameSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  attempts    GameAttempt[]
+  id                      String        @id @default(cuid())
+  sessionId               String
+  numbers                 Int[]
+  status                  GameStatus    @default(IN_PROGRESS)
+  createdAt               DateTime      @default(now())
+  completedAt             DateTime?
+  gotItAt                 DateTime?
+  durationSeconds         Int?
+  capturedDurationSeconds Int?
+  session                 GameSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  attempts                GameAttempt[]
 
   @@index([sessionId, createdAt])
 }

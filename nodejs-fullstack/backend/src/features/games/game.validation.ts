@@ -3,7 +3,7 @@ import { HttpError } from "../../http/httpError.js";
 import type { AnswerInput, GamePageInput } from "./game.types.js";
 
 export function parseAnswer(body: unknown): AnswerInput {
-    const { numbers, expression, gameId } = (body ?? {}) as Partial<AnswerInput>;
+    const { numbers, expression, gameId, durationSeconds } = (body ?? {}) as Partial<AnswerInput>;
     const invalid = (message: string): never => { throw new HttpError(400, { valid: false, message }); };
     if (!Array.isArray(numbers) || !numbers.every(number => typeof number === "number") || typeof expression !== "string") {
         return invalid('Please provide "numbers" as an array and "expression" as a string.');
@@ -13,7 +13,10 @@ export function parseAnswer(body: unknown): AnswerInput {
         return invalid("Please provide exactly four integers between 1 and 10.");
     }
     if (gameId !== undefined && typeof gameId !== "string") return invalid("gameId must be a string.");
-    return { numbers, expression, ...(gameId !== undefined ? { gameId } : {}) };
+    if (durationSeconds !== undefined && (typeof durationSeconds !== "number" || !Number.isFinite(durationSeconds) || durationSeconds < 0 || durationSeconds > 2147483647)) {
+        return invalid("durationSeconds must be a non-negative number within the integer range.");
+    }
+    return { numbers, expression, ...(gameId !== undefined ? { gameId } : {}), ...(durationSeconds !== undefined ? { durationSeconds } : {}) };
 }
 
 export function parseGamePage(rawLimit: unknown, rawCursor: unknown): GamePageInput {
@@ -43,5 +46,14 @@ export const validateAnswer: RequestHandler = (req, res, next) => {
 
 export const validateGamePage: RequestHandler = (req, res, next) => {
     res.locals.page = parseGamePage(req.query.limit, req.query.cursor);
+    next();
+};
+
+export const validateGotIt: RequestHandler = (req, res, next) => {
+    const durationSeconds: unknown = req.body?.durationSeconds;
+    if (typeof durationSeconds !== "number" || !Number.isFinite(durationSeconds) || durationSeconds < 0 || durationSeconds > 2147483647) {
+        throw new HttpError(400, { message: "durationSeconds must be a finite, non-negative number of seconds." });
+    }
+    res.locals.durationSeconds = durationSeconds;
     next();
 };

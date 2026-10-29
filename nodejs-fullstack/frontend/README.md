@@ -7,12 +7,12 @@ React and TypeScript client for the full-stack 24 Game. See [the project README]
 From this directory:
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
 The Vite development server proxies `/api` to `http://localhost:3000` by default.
-To use a different API origin, set `VITE_API_BASE_URL` in a local `.env` file.
+Copy `.env.example` to `.env` if needed. To use a different API origin or backend port, set `VITE_API_BASE_URL` there.
 
 ## Source organization
 
@@ -63,3 +63,19 @@ Tests cover arithmetic and solver logic, reducer transitions, session headers,
 server error handling, Strict Mode initialization, expression editing, timers,
 history refreshes, and pending-request guards. React integration tests use
 Happy DOM and mock only the network and success sound.
+
+The UI timer owns the saved duration. Browser-local start/stop timestamps
+survive refresh, and elapsed time includes background-tab time. Got It and
+Check Answer send whole UI seconds to the server; database creation timestamps
+are never used to calculate duration. A pending answer freezes the displayed
+clock, and an incorrect answer resumes it. Previously frozen time (Got It or
+Show Solutions) stays frozen and is the value sent on completion.
+
+Game History initially shows the newest 20 games. **Load More** appends the
+next page, and **Refresh History** returns to the newest page. Next-page failures
+preserve the displayed rows and allow refresh/retry. Success sound is optional;
+audio failure never changes a successful answer result or its saved duration.
+
+Run all project checks with `npm run verify` from the parent `nodejs-fullstack`
+directory. `npm run smoke:production` additionally verifies clean installs and
+production-only backend startup in a disposable temporary copy.

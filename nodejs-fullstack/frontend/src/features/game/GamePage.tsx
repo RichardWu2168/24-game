@@ -36,6 +36,8 @@ export function GamePage() {
       <p className={`game-message ${state.isCorrect === true ? 'correct' : state.isCorrect === false ? 'incorrect' : ''}`} role="status">{state.message}</p>
       <SolutionsPanel solutions={state.solutions} />
     </section>
-    <GameHistory games={history.games} isLoading={history.isLoading} error={history.error} onRefresh={history.refresh} />
+    <GameHistory games={history.games} isLoading={history.isLoading} error={history.error} onRefresh={history.refresh}
+      onClear={() => game.clearHistory(history.clear)} isClearing={history.isClearing} disabled={game.isRequestPending}
+      hasMore={history.hasMore} isLoadingMore={history.isLoadingMore} onLoadMore={history.loadMore} />
   </main>
 }

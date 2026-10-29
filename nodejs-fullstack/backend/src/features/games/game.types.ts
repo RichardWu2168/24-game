@@ -4,6 +4,7 @@ export interface AnswerInput {
     numbers: number[];
     expression: string;
     gameId?: string;
+    durationSeconds?: number;
 }
 
 export interface GamePageInput {
@@ -18,6 +19,9 @@ export interface SavedGame {
     status: GameStatus;
     createdAt?: Date;
     completedAt?: Date | null;
+    gotItAt?: Date | null;
+    durationSeconds?: number | null;
+    capturedDurationSeconds?: number | null;
     attempts?: { id: string; expression: string; isCorrect: boolean; createdAt: Date }[];
 }
 
@@ -28,6 +32,7 @@ export interface GameSummary {
     createdAt: Date;
     completedAt: Date | null;
     attemptCount: number;
+    durationSeconds?: number | null;
 }
 
 export interface GameCounts {
@@ -43,12 +48,14 @@ export interface GameCounts {
 export interface GameRepository {
     inSession<T>(sessionId: string, work: (repository: GameRepository) => Promise<T>): Promise<T>;
     ensureSession(sessionId: string): Promise<void>;
-    findActiveGame(sessionId: string): Promise<{ id: string; numbers: number[] } | null>;
+    findActiveGame(sessionId: string): Promise<{ id: string; numbers: number[]; createdAt?: Date; gotItAt?: Date | null; capturedDurationSeconds?: number | null } | null>;
     findGame(id: string, withAttempts?: boolean): Promise<SavedGame | null>;
-    createGame(sessionId: string, numbers: number[]): Promise<{ id: string }>;
+    createGame(sessionId: string, numbers: number[]): Promise<{ id: string; createdAt?: Date }>;
     abandonGame(sessionId: string, gameId: string): Promise<void>;
-    completeGame(sessionId: string, gameId: string): Promise<void>;
+    completeGame(sessionId: string, gameId: string, durationSeconds: number | null): Promise<void>;
+    recordGotIt(sessionId: string, gameId: string, gotItAt: Date, durationSeconds: number): Promise<void>;
     createAttempt(gameId: string, expression: string, isCorrect: boolean): Promise<void>;
     listGames(sessionId: string, page: GamePageInput): Promise<GameSummary[]>;
     getCounts(sessionId: string): Promise<GameCounts>;
+    deleteFinishedGames(sessionId: string): Promise<number>;
 }

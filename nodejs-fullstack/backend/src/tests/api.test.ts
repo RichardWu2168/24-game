@@ -6,6 +6,69 @@ import { createApp } from "../app.js";
 import { errorHandler } from "../middleware/errorHandler.js";
 import type { GameStore } from "../database/gameStore.js";
 
+test("Got It validates duration and records only the thinking timestamp", async () => {
+    const store = createFakeStore();
+    const startedAt = new Date(Date.now() - 100_000);
+    let captured: Date | undefined;
+    store.game.findUnique = async () => ({ id: "game", sessionId: "owner", numbers: [1, 2, 3, 4], status: "IN_PROGRESS", createdAt: startedAt });
+    store.game.update = async ({ data }) => {
+        assert.equal(data.status, undefined);
+        assert.equal(data.durationSeconds, undefined);
+        assert.equal(data.capturedDurationSeconds, 18);
+        captured = data.gotItAt;
+    };
+    await withServer(async url => {
+        const send = (durationSeconds: unknown, session = "owner") => fetch(`${url}/api/games/game/got-it`, {
+            method: "POST", headers: { "Content-Type": "application/json", "X-Session-Id": session }, body: JSON.stringify({ durationSeconds }),
+        });
+        for (const invalid of [undefined, null, -1, "18", Number.MAX_VALUE]) assert.equal((await send(invalid)).status, 400);
+        assert.equal((await send(18, "other")).status, 404);
+        assert.equal((await send(18, "")).status, 400);
+        const valid = await send(18.125);
+        assert.equal(valid.status, 200);
+        assert.ok(captured instanceof Date);
+        assert.deepEqual(await valid.json(), { gotItAt: captured!.toISOString(), capturedDurationSeconds: 18 });
+    }, createApp(store));
+});
+
+test("DELETE /api/games requires a session before deleting anything", async () => {
+    const store = createFakeStore();
+    let deleted = false;
+    store.game.deleteMany = async () => { deleted = true; return { count: 1 }; };
+    await withServer(async url => {
+        const response = await fetch(`${url}/api/games`, { method: "DELETE" });
+        assert.equal(response.status, 400);
+        assert.equal(deleted, false);
+    }, createApp(store));
+});
+
+test("DELETE /api/games deletes only the session's finished games and preserves active games", async () => {
+    const store = createFakeStore();
+    let games = [
+        { sessionId: "owner", id: "one", status: "COMPLETED" },
+        { sessionId: "owner", id: "two", status: "ABANDONED" },
+        { sessionId: "other", id: "three", status: "COMPLETED" },
+        { sessionId: "owner", id: "active", status: "IN_PROGRESS" },
+    ];
+    store.game.deleteMany = async ({ where }) => {
+        const before = games.length;
+        assert.deepEqual(where.status.in, ["COMPLETED", "ABANDONED"]);
+        games = games.filter(game => game.sessionId !== where.sessionId || !where.status.in.some(status => status === game.status));
+        return { count: before - games.length };
+    };
+    await withServer(async url => {
+        const response = await fetch(`${url}/api/games`, { method: "DELETE", headers: { "X-Session-Id": "owner" } });
+        assert.equal(response.status, 200);
+        assert.deepEqual(await response.json(), { deletedGames: 2 });
+        assert.deepEqual(games, [
+            { sessionId: "other", id: "three", status: "COMPLETED" },
+            { sessionId: "owner", id: "active", status: "IN_PROGRESS" },
+        ]);
+        const repeated = await fetch(`${url}/api/games`, { method: "DELETE", headers: { "X-Session-Id": "owner" } });
+        assert.deepEqual(await repeated.json(), { deletedGames: 0 });
+    }, createApp(store));
+});
+
 test("a different session cannot submit an answer to another session's game", async () => {
     const store = createFakeStore();
     let writes = 0;
@@ -15,7 +78,7 @@ test("a different session cannot submit an answer to another session's game", as
         const response = await fetch(`${url}/api/check-answer`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Session-Id": "another-session" },
-            body: JSON.stringify({ gameId: "test-game-id", numbers: [3, 5, 4, 1], expression: "(3+5)*(4-1)" }),
+            body: JSON.stringify({ durationSeconds: 18, gameId: "test-game-id", numbers: [3, 5, 4, 1], expression: "(3+5)*(4-1)" }),
         });
         assert.equal(response.status, 404);
         assert.equal(writes, 0);
@@ -75,7 +138,7 @@ function transactionalStore() {
 }
 
 const sessionHeaders = { "Content-Type": "application/json", "X-Session-Id": "test-session-id" };
-const correctSavedAnswer = { gameId: "original", numbers: [3, 5, 4, 1], expression: "(3+5)*(4-1)" };
+const correctSavedAnswer = { durationSeconds: 18, gameId: "original", numbers: [3, 5, 4, 1], expression: "(3+5)*(4-1)" };
 
 test("concurrent correct submissions record only one successful attempt", async () => {
     const fixture = transactionalStore();
@@ -517,7 +580,7 @@ test("POST /api/check-answer accepts a correct answer", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [3, 5, 4, 1],
                 expression: "(3 + 5) * (4 - 1)",
             }),
@@ -545,7 +608,7 @@ test("POST /api/check-answer rejects an incorrect answer", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3, 4],
                 expression: "1 + 2 + 3 + 4",
             }),
@@ -573,7 +636,7 @@ test("POST /api/check-answer rejects malformed request fields", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: "1,2,3,4",
                 expression: "1 + 2 + 3 + 4",
             }),
@@ -626,7 +689,7 @@ test("POST /api/check-answer rejects an invalid card count", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3],
                 expression: "1 + 2 + 3",
             }),
@@ -652,7 +715,7 @@ test("POST /api/check-answer rejects card values outside 1 to 10", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [0, 2, 3, 11],
                 expression: "0 + 2 + 3 + 11",
             }),
@@ -678,7 +741,7 @@ test("POST /api/check-answer rejects a missing expression", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [3, 5, 4, 1],
             }),
         });
@@ -703,7 +766,7 @@ test("POST /api/check-answer rejects an expression that is too long", async () =
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [3, 5, 4, 1],
                 expression: "1".repeat(101),
             }),
@@ -775,7 +838,7 @@ test("missing request fields return 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ durationSeconds: 18,}),
         });
 
         assert.equal(response.status, 400);
@@ -801,7 +864,7 @@ test("invalid card numbers return 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3, 11],
                 expression: "1 + 2 + 3 + 11",
             }),
@@ -830,7 +893,7 @@ test("a missing expression returns 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3, 4],
             }),
         });
@@ -860,7 +923,7 @@ test("expressions longer than 100 characters return 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3, 4],
                 expression,
             }),
@@ -889,7 +952,7 @@ test("invalid expression syntax returns a validation error", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3, 4],
                 expression: "1 + 2 + 3 + @",
             }),
@@ -938,7 +1001,7 @@ test("decimal card numbers return 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 2.5, 4],
                 expression: "1 + 2 + 2.5 + 4",
             }),
@@ -967,7 +1030,7 @@ test("negative card numbers return 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [-1, 2, 3, 4],
                 expression: "-1 + 2 + 3 + 4",
             }),
@@ -996,7 +1059,7 @@ test("fewer than four card numbers return 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3],
                 expression: "1 + 2 + 3",
             }),
@@ -1025,7 +1088,7 @@ test("more than four card numbers return 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3, 4, 5],
                 expression: "1 + 2 + 3 + 4 + 5",
             }),
@@ -1054,7 +1117,7 @@ test("card number 10 is accepted by input validation", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3, 10],
                 expression: "1 + 2 + 3 + 10",
             }),
@@ -1082,7 +1145,7 @@ test("numbers provided as a string return 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: "1,2,3,4",
                 expression: "1 + 2 + 3 + 4",
             }),
@@ -1111,7 +1174,7 @@ test("a non-string expression returns 400", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 numbers: [1, 2, 3, 4],
                 expression: 24,
             }),
@@ -1181,7 +1244,7 @@ test("POST /api/check-answer records an answer attempt", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 gameId: "test-game-id",
                 numbers: [3, 5, 4, 1],
                 expression: "(3 + 5) * (4 - 1)",
@@ -1254,7 +1317,7 @@ test("POST /api/check-answer records an incorrect answer attempt", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 gameId: "test-game-id",
                 numbers: [1, 2, 3, 4],
                 expression: "1 + 2 + 3 + 4",
@@ -1332,7 +1395,7 @@ test("POST /api/check-answer marks a game completed after a correct answer", asy
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 gameId: "test-game-id",
                 numbers: [3, 5, 4, 1],
                 expression: "(3 + 5) * (4 - 1)",
@@ -1400,7 +1463,7 @@ test("POST /api/check-answer does not complete a game after an incorrect answer"
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 gameId: "test-game-id",
                 numbers: [1, 2, 3, 4],
                 expression: "1 + 2 + 3 + 4",
@@ -1454,7 +1517,7 @@ test("POST /api/check-answer returns 404 for an unknown game", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 gameId: "unknown-game-id",
                 numbers: [3, 5, 4, 1],
                 expression: "(3 + 5) * (4 - 1)",
@@ -1511,7 +1574,7 @@ test("POST /api/check-answer rejects numbers that differ from the saved game", a
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 gameId: "test-game-id",
                 numbers: [1, 2, 3, 4],
                 expression: "1 + 2 + 3 + 4",
@@ -1571,7 +1634,7 @@ test("POST /api/check-answer rejects an already completed game", async () => {
                 "Content-Type": "application/json",
                 "X-Session-Id": "test-session-id",
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ durationSeconds: 18,
                 gameId: "test-game-id",
                 numbers: [3, 5, 4, 1],
                 expression: "(3 + 5) * (4 - 1)",
@@ -1966,7 +2029,10 @@ test("paginates game history using a cursor", async () => {
         game: {
             create: async () => ({ id: "new-game" }),
             update: async () => ({}),
-            findUnique: async () => null,
+            findUnique: async ({ where }: { where: { id: string } }) => {
+                const game = allGames.find(game => game.id === where.id);
+                return game ? { ...game, sessionId: "test-session-id" } : null;
+            },
             findMany: async (args: {
                 take: number;
                 skip?: number;

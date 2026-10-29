@@ -1,4 +1,5 @@
 export function playSuccessSound() {
+  if (typeof AudioContext === 'undefined') return
   const audioContext = new AudioContext()
   const oscillator = audioContext.createOscillator()
   const gainNode = audioContext.createGain()
@@ -21,6 +22,6 @@ export function playSuccessSound() {
   oscillator.stop(audioContext.currentTime + 0.5)
 
   oscillator.onended = () => {
-    void audioContext.close()
+    void audioContext.close().catch(() => {})
   }
 }

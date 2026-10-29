@@ -6,6 +6,12 @@ import { GameRepositoryError } from "./game.errors.js";
 
 export function createGameRepository(store: GameStore = prisma): GameRepository {
     return {
+        async deleteFinishedGames(sessionId) {
+            if (!store.game.deleteMany) throw new Error("Clearing game history is unavailable.");
+            // GameAttempt rows are removed by the database's ON DELETE CASCADE.
+            const result = await store.game.deleteMany({ where: { sessionId, status: { in: ["COMPLETED", "ABANDONED"] } } });
+            return result.count;
+        },
         async inSession(sessionId, work) {
             if (Object.is(store, prisma)) {
                 return withSessionTransaction(sessionId, tx => work(createGameRepository(tx)));
@@ -36,10 +42,13 @@ export function createGameRepository(store: GameStore = prisma): GameRepository 
         async abandonGame(sessionId, gameId) {
             await store.game.update({ where: { id: gameId, status: "IN_PROGRESS", sessionId }, data: { status: "ABANDONED" } });
         },
-        async completeGame(sessionId, gameId) {
+        async recordGotIt(sessionId, gameId, gotItAt, capturedDurationSeconds) {
+            await store.game.update({ where: { id: gameId, sessionId, status: "IN_PROGRESS" }, data: { gotItAt, capturedDurationSeconds } });
+        },
+        async completeGame(sessionId, gameId, durationSeconds) {
             await store.game.update({
                 where: { id: gameId, status: "IN_PROGRESS", sessionId },
-                data: { status: "COMPLETED", completedAt: new Date() },
+                data: { status: "COMPLETED", completedAt: new Date(), durationSeconds },
             });
         },
         async createAttempt(gameId, expression, isCorrect) {
@@ -47,6 +56,12 @@ export function createGameRepository(store: GameStore = prisma): GameRepository 
         },
         async listGames(sessionId: string, { limit, cursor }: GamePageInput) {
             if (!store.game.findMany) throw new GameRepositoryError("LIST_UNAVAILABLE");
+            // findMany returns an empty page for a missing cursor. Validate it
+            // explicitly, including ownership, before using it as a position.
+            if (cursor) {
+                const game = await store.game.findUnique({ where: { id: cursor } });
+                if (!game || game.sessionId !== sessionId) throw new GameRepositoryError("CURSOR_NOT_FOUND");
+            }
             try {
                 const games = await store.game.findMany({
                     where: { sessionId }, take: limit + 1,
@@ -54,7 +69,7 @@ export function createGameRepository(store: GameStore = prisma): GameRepository 
                     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
                     include: { _count: { select: { attempts: true } } },
                 });
-                return games.map(({ _count, ...game }) => ({ ...game, attemptCount: _count.attempts }));
+                return games.map(({ _count, ...game }) => ({ ...game, durationSeconds: game.durationSeconds ?? null, attemptCount: _count.attempts }));
             } catch (error) {
                 if (cursor && typeof error === "object" && error !== null && "code" in error && error.code === "P2025") {
                     throw new GameRepositoryError("CURSOR_NOT_FOUND");

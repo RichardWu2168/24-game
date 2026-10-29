@@ -10,6 +10,7 @@ export interface GameStore {
     };
 
     game: {
+        deleteMany?(args: { where: { sessionId: string; status: { in: ("COMPLETED" | "ABANDONED")[] } } }): Promise<{ count: number }>;
         create(args: {
             data: {
                 numbers: number[];
@@ -17,13 +18,16 @@ export interface GameStore {
                     connect: { id: string };
                 };
             };
-        }): Promise<{ id: string }>;
+        }): Promise<{ id: string; createdAt?: Date }>;
 
         update(args: {
             where: { id: string; status?: "IN_PROGRESS"; sessionId?: string };
             data: {
                 status?: "COMPLETED" | "ABANDONED";
                 completedAt?: Date;
+                gotItAt?: Date;
+                durationSeconds?: number | null;
+                capturedDurationSeconds?: number | null;
             };
         }): Promise<unknown>;
 
@@ -43,6 +47,9 @@ export interface GameStore {
             status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
             createdAt?: Date;
             completedAt?: Date | null;
+            gotItAt?: Date | null;
+            durationSeconds?: number | null;
+            capturedDurationSeconds?: number | null;
             attempts?: {
                 id: string;
                 expression: string;
@@ -60,6 +67,9 @@ export interface GameStore {
             id: string;
             numbers: number[];
             status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
+            createdAt?: Date;
+            gotItAt?: Date | null;
+            capturedDurationSeconds?: number | null;
         } | null>;
 
         findMany?: (args: {
@@ -86,6 +96,7 @@ export interface GameStore {
             status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
             createdAt: Date;
             completedAt: Date | null;
+            durationSeconds?: number | null;
             _count: {
                 attempts: number;
             };
