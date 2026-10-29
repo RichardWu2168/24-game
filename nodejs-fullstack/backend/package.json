@@ -2,25 +2,41 @@
   "name": "nodejs-typescript",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "predev": "npm run db:generate",
+    "build": "npm run db:generate && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
-    "test": "npm run build && node --test dist/game.test.js dist/api.test.js dist/answerChecker.test.js"
+    "test": "npm run build && npm run test:unit",
+    "test:db": "npm run build && node --test dist/tests/database.integration.test.js",
+    "db:generate": "prisma generate --config prisma7.config.ts",
+    "test:unit": "node --test dist/features/games/puzzleGenerator.test.js dist/features/games/game.service.test.js dist/features/games/answerChecker.test.js dist/config/env.test.js dist/http/shutdown.test.js dist/tests/api.test.js",
+    "verify": "npm run build && prisma validate --config prisma7.config.ts && tsc --noEmit -p tsconfig.json && npm run test:unit && node --test dist/tests/database.integration.test.js"
   },
   "keywords": [],
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "cors": "^2.8.6",
-    "express": "^5.3.0"
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "prisma": "^7.10.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "prisma@7.10.1": true,
+    "@prisma/engines@7.10.1": true,
+    "esbuild@0.28.2": true
   }
 }

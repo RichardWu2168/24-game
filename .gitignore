@@ -25,3 +25,9 @@ pnpm-debug.log*
 
 .DS_Store
 Thumbs.db
+
+nodejs-fullstack/backend/.agents/
+nodejs-fullstack/backend/.claude/
+nodejs-fullstack/backend/.windsurf/
+.vercel
+.env*

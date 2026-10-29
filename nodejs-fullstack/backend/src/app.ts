@@ -1,104 +1,27 @@
-
 import cors from "cors";
 import express from "express";
-import { generatePuzzle } from "./game.js";
-import { checkAnswer } from "./answerChecker.js";
+import type { GameStore } from "./database/gameStore.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import { createGameRepository } from "./features/games/game.repository.js";
+import { createGameService } from "./features/games/game.service.js";
+import { createGameRouter } from "./features/games/game.routes.js";
+import { getAllowedOrigins } from "./config/env.js";
 
-const app = express();
-
-const allowedOrigins = (process.env.FRONTEND_URL ?? "")
-    .split(",")
-    .map((url) => url.trim())
-    .filter(Boolean);
-
-app.use(
-    cors({
-        origin: allowedOrigins,
-        methods: ["GET", "POST"],
-        allowedHeaders: ["Content-Type"],
-    })
-);
-
-app.use(express.json());
-
-app.get("/api/health", (_req, res) => {
-    res.json({
-        status: "OK",
-        message: "24 Game backend is running!"
+export function createApp(gameStore?: GameStore) {
+    const app = express();
+    app.use(cors({
+        origin: getAllowedOrigins(),
+        methods: ["GET", "POST", "DELETE"],
+        allowedHeaders: ["Content-Type", "X-Session-Id"],
+    }));
+    app.use(express.json());
+    app.get("/api/health", (_req, res) => {
+        res.json({ status: "OK", message: "24 Game backend is running!" });
     });
-});
-
-app.get("/api/puzzle", (_req, res) => {
-    const numbers = generatePuzzle();
-    res.json({ numbers });
-});
-
-app.post("/api/check-answer", (req, res) => {
-    const { numbers, expression } = req.body ?? {};
-
-    if (
-        !Array.isArray(numbers) ||
-        !numbers.every((number: unknown) => typeof number === "number") ||
-        typeof expression !== "string"
-    ) {
-        return res.status(400).json({
-            valid: false,
-            message:
-                'Please provide "numbers" as an array and "expression" as a string.',
-        });
-    }
-
-    if (expression.length > 100) {
-        return res.status(400).json({
-            valid: false,
-            message: "Expression must not exceed 100 characters.",
-        });
-    }
-
-    if (
-        numbers.length !== 4 ||
-        !numbers.every(
-            (number: number) =>
-                Number.isInteger(number) && number >= 1 && number <= 10,
-        )
-    ) {
-        return res.status(400).json({
-            valid: false,
-            message: "Please provide exactly four integers between 1 and 10.",
-        });
-    }
-
-    const result = checkAnswer(expression, numbers);
-
-    return res.json(result);
-});
-
-export function errorHandler(
-    error: unknown,
-    _req: express.Request,
-    res: express.Response,
-    _next: express.NextFunction,
-) {
-    if (
-        typeof error === "object" &&
-        error !== null &&
-        "type" in error &&
-        error.type === "entity.parse.failed"
-    ) {
-        return res.status(400).json({
-            valid: false,
-            message: "Invalid JSON request body.",
-        });
-    }
-
-    console.error("Unexpected API error:", error);
-
-    return res.status(500).json({
-        valid: false,
-        message: "An unexpected server error occurred.",
-    });
+    const repository = createGameRepository(gameStore);
+    app.use("/api", createGameRouter(createGameService(repository)));
+    app.use(errorHandler);
+    return app;
 }
 
-app.use(errorHandler);
-
-export default app;
+export default createApp();

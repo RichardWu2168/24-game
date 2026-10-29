@@ -1,0 +1,10 @@
+{
+  "name": "math-24-fullstack",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix backend ci && npm --prefix backend run db:generate && npm --prefix frontend ci",
+    "verify": "npm --prefix backend run verify && npm --prefix frontend run verify",
+    "smoke:production": "node scripts/smoke-production.mjs"
+  }
+}

@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum GameStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+model GameSession {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  games     Game[]
+}
+
+model Game {
+  id                      String        @id @default(cuid())
+  sessionId               String
+  numbers                 Int[]
+  status                  GameStatus    @default(IN_PROGRESS)
+  createdAt               DateTime      @default(now())
+  completedAt             DateTime?
+  gotItAt                 DateTime?
+  durationSeconds         Int?
+  capturedDurationSeconds Int?
+  session                 GameSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  attempts                GameAttempt[]
+
+  @@index([sessionId, createdAt])
+}
+
+model GameAttempt {
+  id         String   @id @default(cuid())
+  gameId     String
+  expression String
+  isCorrect  Boolean
+  createdAt  DateTime @default(now())
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, createdAt])
+}

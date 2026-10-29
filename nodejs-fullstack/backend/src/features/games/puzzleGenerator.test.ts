@@ -1,7 +1,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canMake24, generatePuzzle  } from "./game.js";
+import { canMake24, generatePuzzle  } from "./puzzleGenerator.js";
 
 test("accepts a solvable puzzle", () => {
     assert.equal(canMake24([1, 2, 3, 4]), true);
