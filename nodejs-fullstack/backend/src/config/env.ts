@@ -1,8 +1,8 @@
 import "dotenv/config";
 
 export function getDatabaseUrl(): string {
-    const url = process.env.DATABASE_URL;
-    if (!url) throw new Error("DATABASE_URL is not configured.");
+    const url = process.env.DATABASE_URL_POOLED?.trim() || process.env.DATABASE_URL?.trim();
+    if (!url) throw new Error("DATABASE_URL_POOLED or DATABASE_URL must be configured.");
     return url;
 }
 

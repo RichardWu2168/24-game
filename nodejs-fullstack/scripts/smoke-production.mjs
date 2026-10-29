@@ -10,6 +10,7 @@ const temporary = await mkdtemp(join(tmpdir(), 'math24-production-'))
 const environment = {
   ...process.env,
   DATABASE_URL: 'postgresql://smoke:smoke@127.0.0.1:1/smoke',
+  DATABASE_URL_POOLED: 'postgresql://smoke:smoke@127.0.0.1:1/smoke',
   PORT: '0',
   FRONTEND_URL: 'http://localhost:5173',
 }

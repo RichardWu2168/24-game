@@ -8,6 +8,7 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
+    // CLI/schema operations deliberately use the direct URL, not the runtime pooler.
     url: process.env.DATABASE_URL,
   },
 });

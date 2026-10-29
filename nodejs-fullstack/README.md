@@ -288,9 +288,20 @@ access may be required to install dependencies.
 
 Backend configuration:
 
-- `DATABASE_URL`: required PostgreSQL URL.
+- `DATABASE_URL`: direct PostgreSQL URL for Prisma CLI/migrations and raw SQL integration tests; also the runtime fallback.
+- `DATABASE_URL_POOLED`: optional runtime pooler URL. The application prefers it when non-empty and otherwise uses `DATABASE_URL`.
 - `PORT`: defaults to 3000; use 0 only when a free test port is desired.
 - `FRONTEND_URL`: comma-separated browser origins allowed to call the API.
+
+When both database URLs are configured, they must point to the same database
+and schema. `src/database/prisma.ts` uses the runtime helper, so no adapter
+change is necessary. `prisma7.config.ts` intentionally continues using the
+direct `DATABASE_URL`, as do raw SQL schema/migration tests. Do not replace
+those with the pooled fallback. Prisma-backed integration tests exercise the
+runtime URL; run destructive/DDL tests only against a development/test database.
+The production smoke script overrides both URL variables with unreachable test
+values, preventing inherited pooled credentials from selecting a real database.
+See [Prisma's pooler configuration guidance](https://www.prisma.io/docs/orm/v7/prisma-client/setup-and-configuration/databases-connections/pgbouncer).
 
 Frontend `VITE_API_BASE_URL` may be empty for Vite's development proxy to port
 3000. Set it explicitly when using a different backend port or origin.
@@ -500,7 +511,7 @@ The backend has been verified locally with PostgreSQL, including:
 - Aggregate statistics.
 - Cursor-based pagination across multiple pages.
 
-The current checks pass 82 backend unit/HTTP tests, nine PostgreSQL integration
+The current checks pass 83 backend unit/HTTP tests, nine PostgreSQL integration
 tests, and 60 frontend tests. PostgreSQL integration checks use isolated test
 schemas and roll back their changes.
 

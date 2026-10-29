@@ -38,6 +38,7 @@ test("real history pagination rejects missing, deleted, and foreign-session curs
 const integerMigrationPath = "prisma/migrations/20261028220000_duration_seconds_integer/migration.sql";
 
 async function withFloatDurationSchema(work: (client: Client) => Promise<void>) {
+    // Schema/search_path tests require a direct connection, not a pooler fallback.
     const client = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000 });
     await client.connect();
     try {
