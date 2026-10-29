@@ -20,6 +20,10 @@ The goal is to use all four number cards exactly once, combining them with addit
 
 ![Codex 24 Game](screenshots/codex.png)
 
+### Node.js + Prisma + PostgreSQL Full-stack Version
+
+![Fullstack 24 Game](screenshots/fullstack.png)
+
 ## Game Rules
 
 - Each round deals four cards with values from 1 to 10.
@@ -63,7 +67,7 @@ The full-stack version also supports keyboard shortcuts for the main game action
 |---|---|---|
 | React + TypeScript | React, TypeScript, Vite | Live |
 | Codex React + TypeScript Experiment | React, TypeScript, Vite | Live |
-| Node.js Full-Stack | React, TypeScript, Vite, Node.js, Express, Prisma, PostgreSQL | Deployed; production database setup in progress |
+| Node.js Full-Stack | React, TypeScript, Vite, Node.js, Express, Prisma, PostgreSQL | Live; production database initialized |
 | WPF | C#, WPF | Planned |
 | C# + ASP.NET Core | C#, ASP.NET Core Web API | Planned |
 | Angular | Angular, TypeScript | Planned |
@@ -127,18 +131,20 @@ Prisma migrations manage database schema changes. The migration files are mainta
 
 For local development, configure the backend environment variables using the provided `.env.example` file. Set up a PostgreSQL database and apply the existing migrations before running database-backed features.
 
-Production database initialization and migration verification are still in progress.
+The six existing migrations were applied to the production database on October 29, 2026. Prisma confirmed that its migration history was up to date. The database includes `Game`, `GameSession`, `GameAttempt`, and Prisma's `_prisma_migrations` table.
 
 ### Deployment
 
 The full-stack version is deployed on Vercel as separate frontend and backend projects.
 
 - **Frontend:** [24-game-fullstack.vercel.app](https://24-game-fullstack.vercel.app)
-- **Backend:** Deployed separately as a Node.js API.
+- **Backend:** [24-game-nodejs-api.vercel.app](https://24-game-nodejs-api.vercel.app)
 
 The frontend uses `VITE_API_BASE_URL` to identify the backend API. The backend uses environment variables to configure its database connection and other runtime settings.
 
 Database migrations must be applied to the intended production database before database-backed features can operate correctly.
+
+Generating Prisma Client or running an ordinary `vercel deploy` does not currently apply migrations. See the [full-stack deployment and migration instructions](nodejs-fullstack/README.md#vercel-deployment-and-production-migrations) for the separate workflow, including protected production credentials.
 
 ## Project Goals
 
@@ -172,7 +178,7 @@ cd react-typescript/frontend
 Install dependencies:
 
 ```bash
-npm install
+npm ci
 ```
 
 Start the development server:
@@ -208,12 +214,16 @@ cd nodejs-fullstack/backend
 Install dependencies:
 
 ```bash
-npm install
+npm ci
 ```
 
 Configure the environment variables and PostgreSQL connection using `.env.example`. Ensure that `DATABASE_URL` points to the intended database for Prisma migrations.
 
+Use a development database for verification. If `DATABASE_URL_POOLED` is set, the application prefers it at runtime; it must point to the same database and schema as `DATABASE_URL`.
+
 Apply the existing migrations:
+
+For a populated database that predates game sessions, first follow the [legacy upgrade instructions](nodejs-fullstack/README.md#upgrading-existing-games-to-sessions).
 
 ```bash
 npx prisma migrate deploy --config prisma7.config.ts
@@ -243,16 +253,16 @@ cd nodejs-fullstack/frontend
 Install dependencies:
 
 ```bash
-npm install
+npm ci
 ```
 
-Configure `VITE_API_BASE_URL` to point to the backend API, then start the frontend:
+Copy the frontend `.env.example` to `.env` if no local configuration exists. Leave `VITE_API_BASE_URL` empty to use Vite's local proxy to `http://localhost:3000`, or set it to the backend origin. Then start the frontend:
 
 ```bash
 npm run dev
 ```
 
-Refer to the backend and frontend configuration files for the required environment variables and available scripts.
+See the [full-stack README](nodejs-fullstack/README.md) for quick setup, environment variables, API documentation, and verification commands.
 
 ## Deployment
 
@@ -274,6 +284,7 @@ The Codex experiment is deployed as a separate Vercel project:
 The full-stack version uses separate Vercel projects for the frontend and backend. Configure each project with its corresponding root directory, build settings, and environment variables. Database migrations are a separate deployment responsibility and must be applied to the intended production database.
 
 - **Live URL:** [24-game-fullstack.vercel.app](https://24-game-fullstack.vercel.app)
+- **Backend URL:** [24-game-nodejs-api.vercel.app](https://24-game-nodejs-api.vercel.app)
 - **Backend Root directory:** `nodejs-fullstack/backend`
 - **Frontend Root directory:** `nodejs-fullstack/frontend`
 

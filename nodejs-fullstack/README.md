@@ -45,6 +45,8 @@ The frontend communicates with the backend through REST API endpoints. The backe
 - Persist games and answer attempts in PostgreSQL.
 - Track game status: in progress, completed, or abandoned.
 - Record completion timestamps for successful games.
+- Save the UI timer's whole elapsed seconds for completed games and display them as `mm:ss`.
+- Resume the browser session's active game and clear finished history without resetting it.
 - Retrieve individual games with their answer history.
 - Browse game history using cursor-based pagination.
 - Retrieve aggregate game and answer statistics.
@@ -60,26 +62,38 @@ The backend runs locally on port `3000` by default.
 | GET    | `/api/health`       | Check backend availability                    |
 | DELETE | `/api/games`        | Clear completed/abandoned games for this session |
 | POST   | `/api/games/:id/got-it` | Capture thinking time for the active puzzle |
-| GET    | `/api/puzzle`       | Generate and save a new puzzle                |
+| GET    | `/api/puzzle`       | Resume the session's active puzzle, or create one if absent |
+| POST   | `/api/puzzle`       | Start a new puzzle and abandon any active game |
 | POST   | `/api/check-answer` | Validate an expression and record an attempt  |
 | GET    | `/api/games`        | Retrieve paginated game history               |
 | GET    | `/api/games/:id`    | Retrieve a game and its answer attempts       |
 | GET    | `/api/stats`        | Retrieve aggregate game and answer statistics |
 
+All game/session endpoints require an `X-Session-Id` header, including saved
+answer submissions. The frontend generates a UUID, stores it in localStorage,
+and adds this header automatically. Reuse the same ID when calling the API
+manually. `/api/health` and a stateless answer check that omits `gameId` do not
+require a session. This is browser-session identification, not user authentication.
+
 ### Generate a Puzzle
 
 ```http
 GET /api/puzzle
+X-Session-Id: example-session-id
 ```
 
-Returns the four puzzle numbers and the saved game's ID.
+Resumes the session's active game, or creates one if none exists. Use
+`POST /api/puzzle` with the same header for the **New Game** action.
 
 Example response:
 
 ```json
 {
   "numbers": [4, 5, 8, 5],
-  "gameId": "example-game-id"
+  "gameId": "example-game-id",
+  "startedAt": "2026-10-29T12:00:00.000Z",
+  "gotItAt": null,
+  "capturedDurationSeconds": null
 }
 ```
 
@@ -88,6 +102,7 @@ Example response:
 ```http
 POST /api/check-answer
 Content-Type: application/json
+X-Session-Id: example-session-id
 ```
 
 Example request:
@@ -229,9 +244,19 @@ Returns aggregate statistics, including:
 
 PostgreSQL stores the game's persistent data. Prisma ORM manages the schema and database access.
 
+### GameSession
+
+Groups games under the browser's stored session ID. History and statistics are
+scoped to this session. Clearing browser storage creates a new session on the
+next visit; it does not delete the previous session's records.
+
 ### Game
 
-Stores the puzzle numbers, game status, creation timestamp, and optional completion timestamp.
+Stores the session ID, puzzle numbers, status, timestamps, nullable whole-second
+completion duration, and optional UI time captured through Got It. A partial
+unique index permits at most one in-progress game per session. History displays
+status labels in title case; the API and database retain enum values such as
+`IN_PROGRESS` and `COMPLETED`.
 
 ### GameAttempt
 
@@ -245,11 +270,12 @@ Tested with Node.js 24 and npm. From `nodejs-fullstack`, copy the example
 configuration files only if your local `.env` files do not already exist:
 
 ```powershell
-Copy-Item backend/.env.example backend/.env
-Copy-Item frontend/.env.example frontend/.env
+if (!(Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
+if (!(Test-Path frontend/.env)) { Copy-Item frontend/.env.example frontend/.env }
 ```
 
-Set the backend `DATABASE_URL` to your local PostgreSQL connection string,
+Create a local PostgreSQL database (for example, `game24`) and set the backend
+`DATABASE_URL` to its connection string,
 then install the locked dependencies and generate Prisma Client:
 
 ```bash
@@ -324,7 +350,7 @@ From the repository root:
 
 ```bash
 cd nodejs-fullstack/backend
-npm install
+npm ci
 ```
 
 Create a local `.env` file in the backend directory and configure your PostgreSQL connection string:
@@ -417,7 +443,7 @@ Open a second terminal from the repository root:
 
 ```bash
 cd nodejs-fullstack/frontend
-npm install
+npm ci
 ```
 
 Create a local frontend `.env` file:
@@ -488,7 +514,7 @@ npm run lint
 Run the frontend tests:
 
 ```bash
-npm test
+npm test -- --run
 ```
 
 Preview the production build locally:
@@ -497,6 +523,104 @@ Preview the production build locally:
 npm run build
 npm run preview
 ```
+
+## Vercel Deployment and Production Migrations
+
+The frontend and backend are separate Vercel projects:
+
+| Component | Project | Root Directory | Framework | Production URL |
+| --- | --- | --- | --- | --- |
+| Frontend | `24-game-fullstack` | `nodejs-fullstack/frontend` | Vite | [Game](https://24-game-fullstack.vercel.app) |
+| Backend | `24-game-nodejs-api` | `nodejs-fullstack/backend` | Express | [API](https://24-game-nodejs-api.vercel.app/api/health) |
+
+Use Node.js 24 for the backend. The frontend builds with `npm run build` and
+outputs `dist`. The backend's `npm run build` generates Prisma Client and
+compiles TypeScript; neither that script nor an ordinary Vercel deployment
+currently applies database migrations.
+
+Configure these variables in the corresponding Vercel environment:
+
+- Frontend: `VITE_API_BASE_URL=https://24-game-nodejs-api.vercel.app`.
+- Backend: direct `DATABASE_URL`, optional `DATABASE_URL_POOLED` for the same
+  database/schema, and `FRONTEND_URL=https://24-game-fullstack.vercel.app`.
+  Add other allowed browser origins as comma-separated values when needed.
+
+Frontend variables are embedded during the Vite build, so redeploy the frontend
+after changing its API URL. Configure preview environments separately; use a
+separate development/preview database for testing schema changes.
+
+### Application deployment versus database migration
+
+`prisma generate` produces client code. `prisma migrate deploy` applies the
+repository's pending SQL migrations to the database selected by
+`prisma7.config.ts` through `DATABASE_URL`. Creating a Vercel deployment alone
+does not create the tables. A plain `vercel deploy` targets preview;
+`vercel deploy --prod` targets production.
+
+On October 29, 2026, all six repository migrations were successfully applied to
+the backend project's production database. A subsequent `prisma migrate status`
+reported **Database schema is up to date!** The migrations created `Game`,
+`GameSession`, `GameAttempt`, and `_prisma_migrations` in the `public` schema.
+No reset or seed command was run. The one-time migration build was not promoted
+to the live application domain. Future migrations still require an explicit run.
+
+### Running migrations with protected Vercel credentials
+
+Production database variables marked Sensitive/Secret are available to remote
+builds but cannot be retrieved through `vercel env pull`. A pulled file may
+contain `[SENSITIVE]` placeholders. Do not use those as connection strings.
+Also, the project's `dotenv/config` loads `.env` by default; pulling variables
+into `.env.development.local` does not automatically load them for Prisma.
+
+To repeat the remote migration procedure for reviewed, committed migrations,
+create a temporary `vercel-migration.json` at the **repository root**:
+
+```json
+{
+  "buildCommand": "npm run build && npx prisma migrate deploy --config prisma7.config.ts && npx prisma migrate status --config prisma7.config.ts"
+}
+```
+
+From that same repository root, after `vercel login`, run:
+
+```powershell
+vercel project inspect 24-game-nodejs-api
+vercel deploy --project 24-game-nodejs-api --prod --skip-domain --yes --local-config vercel-migration.json --logs
+```
+
+Confirm the project owner and Root Directory before deploying. Vercel executes
+the build command in the configured backend Root Directory, using its production
+environment. `--skip-domain` prevents automatic promotion of this application
+build; **the database migrations still take effect immediately**. An application
+build failure after migration does not undo database changes.
+
+After the logs show successful migrations, an up-to-date migration status, and
+a completed deployment, delete the temporary configuration:
+
+```powershell
+Remove-Item -LiteralPath ./vercel-migration.json
+```
+
+Check the database viewer's `public` schema. Do not run `migrate dev`,
+`migrate reset`, or the PostgreSQL integration tests against production. Use
+`migrate dev` only to create new migrations against a development database;
+this repository already contains its initial migration and has no configured
+seed command. For a populated pre-session database, follow the legacy upgrade
+instructions above before applying the remaining migrations.
+
+This procedure uses a per-deployment build override; it does not change the
+project's default Build Command or add automatic migrations to future builds.
+See [Prisma migrate deploy](https://docs.prisma.io/docs/cli/v7/migrate/deploy),
+[Vercel deployment options](https://vercel.com/docs/cli/deploy), and
+[Vercel protected environment variables](https://vercel.com/docs/environment-variables/sensitive-environment-variables).
+
+### TypeScript Node type resolution
+
+The backend declares `@types/node` and sets both `types: ["node"]` and
+`typeRoots: ["./node_modules/@types"]` in `tsconfig.json`. The explicit path
+allows Vercel's TypeScript 7 compiler to resolve Node definitions when it creates
+a temporary configuration outside the project. Keep development dependencies
+available during the build; they contain the compiler and type definitions.
 
 ## Verification
 
@@ -511,9 +635,11 @@ The backend has been verified locally with PostgreSQL, including:
 - Aggregate statistics.
 - Cursor-based pagination across multiple pages.
 
-The current checks pass 83 backend unit/HTTP tests, nine PostgreSQL integration
-tests, and 60 frontend tests. PostgreSQL integration checks use isolated test
-schemas and roll back their changes.
+The verification suite includes 83 backend unit/HTTP tests, nine PostgreSQL
+integration tests, and 60 frontend tests. PostgreSQL integration checks use
+isolated test schemas or rolled-back transactions. Run `npm run verify` against
+a development/test database to verify your checkout; these local test results
+do not substitute for checking the deployed application.
 
 ## Project Structure
 
