@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/api/answers/check"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"expression\": \"(10 - 4) * (9 - 5)\",\r
+
+    \  \"numbers\": [4, 5, 10, 9]\r
+
+    }"
+order: 1000

@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TwentyFourGame.API/TwentyFourGame.API.csproj" />
+    <Project Path="src/TwentyFourGame.Application/TwentyFourGame.Application.csproj" />
+    <Project Path="src/TwentyFourGame.Domain/TwentyFourGame.Domain.csproj" />
+    <Project Path="src/TwentyFourGame.Infrastructure/TwentyFourGame.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TwentyFourGame.API.Tests/TwentyFourGame.API.Tests.csproj" />
+    <Project Path="tests/TwentyFourGame.Domain.Tests/TwentyFourGame.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

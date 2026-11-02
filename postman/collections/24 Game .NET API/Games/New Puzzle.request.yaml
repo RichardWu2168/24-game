@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{baseUrl}}/api/gamesessions/{{sessionId}}/puzzle?forceNew=true"
+method: GET
+queryParams:
+  forceNew: "true"
+order: 2000

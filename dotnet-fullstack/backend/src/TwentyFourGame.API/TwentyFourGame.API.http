@@ -1,0 +1,6 @@
+@TwentyFourGame.API_HostAddress = http://localhost:5216
+
+GET {{TwentyFourGame.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

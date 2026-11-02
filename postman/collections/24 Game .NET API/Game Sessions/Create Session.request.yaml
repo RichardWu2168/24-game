@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{baseUrl}}/api/gamesessions"
+method: POST
+scripts:
+  - type: afterResponse
+    code: "const response = pm.response.json();\r
+
+      \r
+
+      pm.environment.set(\"sessionId\", response.id);\r
+
+      \r
+
+      pm.test(\"Session created successfully\", function () {\r
+
+      \    pm.response.to.have.status(201);\r
+
+      \    pm.expect(response.id).to.be.a(\"string\");\r
+
+      });"
+    language: text/javascript
+order: 1000

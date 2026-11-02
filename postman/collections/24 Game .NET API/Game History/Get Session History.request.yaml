@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/gamesessions/{{sessionId}}/history"
+method: GET
+order: 1000

@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/api/gamesessions/{{sessionId}}/games/{{gameId}}/answers"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"expression\": \"6 * 8 / (4 - 2)\",\r
+
+    \    \"numbers\": [2, 8, 6, 4],\r
+
+    }"
+order: 3000

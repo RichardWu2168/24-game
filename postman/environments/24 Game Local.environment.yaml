@@ -1,0 +1,8 @@
+name: 24 Game Local
+values:
+  - key: baseUrl
+    value: ''
+  - key: sessionId
+    value: ''
+  - key: gameId
+    value: ''

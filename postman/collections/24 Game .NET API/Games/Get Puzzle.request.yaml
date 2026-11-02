@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/gamesessions/{{sessionId}}/puzzle"
+method: GET
+order: 1000
