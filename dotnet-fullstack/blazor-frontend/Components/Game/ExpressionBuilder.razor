@@ -1,0 +1,121 @@
+﻿<div class="expression-builder">
+
+    <h4>Expression</h4>
+
+    <div class="expression-display">
+        @if (string.IsNullOrWhiteSpace(Expression))
+        {
+            <span class="text-muted">
+                Click a card to begin building an expression.
+            </span>
+        }
+        else
+        {
+            <span class="fs-4">@Expression</span>
+        }
+    </div>
+
+    <div class="operator-buttons mt-3">
+
+        @foreach (string op in Operators)
+        {
+            <button type="button"
+                    class="btn btn-outline-primary operator-button"
+                    disabled="@(!CanAddOperator)"
+                    @onclick="() => SelectOperatorAsync(op)">
+                @op
+            </button>
+        }
+
+        <button type="button"
+                class="btn btn-outline-secondary operator-button"
+                disabled="@(!CanAddOpenParenthesis)"
+                @onclick="() => SelectParenthesisAsync(true)">
+            (
+        </button>
+
+        <button type="button"
+                class="btn btn-outline-secondary operator-button"
+                disabled="@(!CanAddCloseParenthesis)"
+                @onclick="() => SelectParenthesisAsync(false)">
+            )
+        </button>
+
+    </div>
+
+    <div class="edit-buttons mt-3">
+
+        <button type="button"
+                class="btn btn-outline-warning"
+                disabled="@(!CanUndo)"
+                @onclick="UndoAsync">
+            Undo
+        </button>
+
+        <button type="button"
+                class="btn btn-outline-danger"
+                disabled="@(!CanClear)"
+                @onclick="ClearAsync">
+            Clear
+        </button>
+
+    </div>
+
+</div>
+
+@code {
+    private static readonly string[] Operators =
+    [
+        "+", "-", "*", "/"
+    ];
+
+    [Parameter]
+    public string Expression { get; set; } = "";
+
+    [Parameter]
+    public bool CanAddOperator { get; set; }
+
+    [Parameter]
+    public bool CanAddOpenParenthesis { get; set; }
+
+    [Parameter]
+    public bool CanAddCloseParenthesis { get; set; }
+
+    [Parameter]
+    public bool CanUndo { get; set; }
+
+    [Parameter]
+    public bool CanClear { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnOperatorSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnParenthesisSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnUndo { get; set; }
+
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+
+    private async Task SelectOperatorAsync(string op)
+    {
+        await OnOperatorSelected.InvokeAsync(op);
+    }
+
+    private async Task SelectParenthesisAsync(bool isOpening)
+    {
+        await OnParenthesisSelected.InvokeAsync(isOpening);
+    }
+
+    private async Task UndoAsync()
+    {
+        await OnUndo.InvokeAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        await OnClear.InvokeAsync();
+    }
+}

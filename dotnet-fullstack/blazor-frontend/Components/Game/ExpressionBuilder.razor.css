@@ -1,0 +1,38 @@
+﻿.expression-builder {
+    margin-top: 24px;
+}
+
+.expression-display {
+    min-height: 70px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+}
+
+.operator-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.operator-button {
+    min-width: 60px;
+    min-height: 50px;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.edit-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+    .edit-buttons button {
+        min-width: 90px;
+        min-height: 44px;
+    }

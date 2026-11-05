@@ -5,5 +5,5 @@ public sealed record PuzzleResponse(
     int[] Numbers,
     DateTime StartedAt,
     DateTime? GotItAt,
-    int? CapturedDurationSeconds
+    double? CapturedDurationSeconds
 );

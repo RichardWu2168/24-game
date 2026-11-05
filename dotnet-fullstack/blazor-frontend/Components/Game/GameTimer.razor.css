@@ -1,0 +1,23 @@
+﻿.game-timer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    margin: 20px 0;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+}
+
+.timer-display {
+    font-family: Consolas, monospace;
+    font-size: 48px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: #212529;
+}
+
+.timer-status {
+    margin-top: 8px;
+    font-size: 14px;
+}

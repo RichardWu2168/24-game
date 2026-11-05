@@ -146,11 +146,11 @@ public sealed class GameService : IGameService
             attempts);
     }
 
-    private static int ConvertDuration(double durationSeconds)
+    private static double ConvertDuration(double durationSeconds)
     {
         if (!double.IsFinite(durationSeconds) ||
             durationSeconds < 0 ||
-            durationSeconds > int.MaxValue)
+            durationSeconds > 604800)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(durationSeconds),
@@ -158,7 +158,10 @@ public sealed class GameService : IGameService
         }
 
         // Match the Node.js implementation: discard fractional seconds.
-        return (int)Math.Floor(durationSeconds);
+        return Math.Round(
+            durationSeconds,
+            1,
+            MidpointRounding.AwayFromZero);
     }
 
     public async Task<PuzzleResponse?> GetPuzzleAsync(

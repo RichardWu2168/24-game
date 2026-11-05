@@ -1,0 +1,54 @@
+﻿@using TwentyFourGame.Blazor.Models
+
+<div class="expression-mode-selector">
+
+    <h5>Answer Input Mode</h5>
+
+    <div class="btn-group"
+         role="group"
+         aria-label="Expression input mode">
+
+        <button type="button"
+                class="btn @(Mode == ExpressionInputMode.Click
+                    ? "btn-primary"
+                    : "btn-outline-primary")"
+                aria-pressed="@(Mode == ExpressionInputMode.Click)"
+                disabled="@Disabled"
+                @onclick="() => SelectModeAsync(ExpressionInputMode.Click)">
+            Click Mode
+        </button>
+
+        <button type="button"
+                class="btn @(Mode == ExpressionInputMode.Type
+                    ? "btn-primary"
+                    : "btn-outline-primary")"
+                aria-pressed="@(Mode == ExpressionInputMode.Type)"
+                disabled="@Disabled"
+                @onclick="() => SelectModeAsync(ExpressionInputMode.Type)">
+            Type Mode
+        </button>
+
+    </div>
+
+</div>
+
+@code {
+    [Parameter]
+    public ExpressionInputMode Mode { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public EventCallback<ExpressionInputMode> OnModeChanged { get; set; }
+
+    private async Task SelectModeAsync(ExpressionInputMode selectedMode)
+    {
+        if (Disabled || selectedMode == Mode)
+        {
+            return;
+        }
+
+        await OnModeChanged.InvokeAsync(selectedMode);
+    }
+}

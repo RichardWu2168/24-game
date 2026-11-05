@@ -278,7 +278,7 @@ public class GamesControllerTests
         Assert.Equal(GameStatus.Completed, savedGame.Status);
 
         Assert.NotNull(savedGame.CompletedAt);
-        Assert.Equal(12, savedGame.DurationSeconds);
+        Assert.Equal(12.5, savedGame.DurationSeconds);
 
         Assert.Single(savedGame.Attempts);
 
@@ -337,7 +337,7 @@ public class GamesControllerTests
                 .SingleAsync(savedGame => savedGame.Id == game.Id);
 
             Assert.NotNull(savedGame.GotItAt);
-            Assert.Equal(15, savedGame.CapturedDurationSeconds);
+            Assert.Equal(15.8, savedGame.CapturedDurationSeconds);
             Assert.Equal(GameStatus.InProgress, savedGame.Status);
         }
 
@@ -365,8 +365,8 @@ public class GamesControllerTests
 
         Assert.Equal(GameStatus.Completed, completedGame.Status);
         Assert.NotNull(completedGame.CompletedAt);
-        Assert.Equal(15, completedGame.DurationSeconds);
-        Assert.Equal(15, completedGame.CapturedDurationSeconds);
+        Assert.Equal(15.8, completedGame.DurationSeconds);
+        Assert.Equal(15.8, completedGame.CapturedDurationSeconds);
         Assert.NotNull(completedGame.GotItAt);
 
         Assert.Single(completedGame.Attempts);
@@ -479,7 +479,7 @@ public class GamesControllerTests
 
         // Read the first captured values from the database.
         DateTime firstGotItAt;
-        int? firstCapturedDuration;
+        double? firstCapturedDuration;
 
         using (var scope = _factory.Services.CreateScope())
         {
@@ -490,7 +490,7 @@ public class GamesControllerTests
                 .SingleAsync(savedGame => savedGame.Id == game.Id);
 
             Assert.NotNull(savedGame.GotItAt);
-            Assert.Equal(15, savedGame.CapturedDurationSeconds);
+            Assert.Equal(15.8, savedGame.CapturedDurationSeconds);
 
             firstGotItAt = savedGame.GotItAt.Value;
             firstCapturedDuration = savedGame.CapturedDurationSeconds;
@@ -517,7 +517,7 @@ public class GamesControllerTests
 
         Assert.Equal(firstGotItAt, finalGame.GotItAt);
         Assert.Equal(firstCapturedDuration, finalGame.CapturedDurationSeconds);
-        Assert.Equal(15, finalGame.CapturedDurationSeconds);
+        Assert.Equal(15.8, finalGame.CapturedDurationSeconds);
         Assert.Equal(GameStatus.InProgress, finalGame.Status);
     }
 
@@ -1063,6 +1063,9 @@ public class GamesControllerTests
     [InlineData(604800, true)]
     [InlineData(604800.1, false)]
     [InlineData(604801, false)]
+    [InlineData(2.34, true)]
+    [InlineData(2.36, true)]
+    [InlineData(12.78, true)]
     public async Task RecordGotIt_WithDurationBoundaryValues_ValidatesCorrectly(
         double durationSeconds,
         bool expectedSuccess)
@@ -1094,7 +1097,9 @@ public class GamesControllerTests
                 .ReadFromJsonAsync<PuzzleResponse>();
 
             Assert.NotNull(body);
-            Assert.Equal((int)durationSeconds, body.CapturedDurationSeconds);
+            Assert.Equal(
+                Math.Round(durationSeconds, 1, MidpointRounding.AwayFromZero),
+                body.CapturedDurationSeconds);
             Assert.NotNull(body.GotItAt);
         }
         else
@@ -1114,7 +1119,9 @@ public class GamesControllerTests
 
         if (expectedSuccess)
         {
-            Assert.Equal((int)durationSeconds, savedGame.CapturedDurationSeconds);
+            Assert.Equal(
+                Math.Round(durationSeconds, 1, MidpointRounding.AwayFromZero),
+                savedGame.CapturedDurationSeconds);
             Assert.NotNull(savedGame.GotItAt);
         }
         else

@@ -21,9 +21,9 @@ public class Game
 
     public DateTime? GotItAt { get; private set; }
 
-    public int? DurationSeconds { get; private set; }
+    public double? DurationSeconds { get; private set; }
 
-    public int? CapturedDurationSeconds { get; private set; }
+    public double? CapturedDurationSeconds { get; private set; }
 
     public GameSession? Session { get; private set; }
 
@@ -84,7 +84,7 @@ public class Game
         Attempts.Add(attempt);
     }
 
-    public void Complete(int durationSeconds)
+    public void Complete(double durationSeconds)
     {
         if (Status != GameStatus.InProgress)
         {
@@ -110,7 +110,7 @@ public class Game
         Status = GameStatus.Abandoned;
     }
 
-    public void RecordGotIt(int durationSeconds)
+    public void RecordGotIt(double durationSeconds)
     {
         if (Status != GameStatus.InProgress)
         {
@@ -129,7 +129,7 @@ public class Game
         CapturedDurationSeconds = durationSeconds;
     }
 
-    private static void ValidateDuration(int durationSeconds)
+    private static void ValidateDuration(double durationSeconds)
     {
         if (durationSeconds < 0)
         {

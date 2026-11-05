@@ -11,7 +11,7 @@ public sealed record GameResponse(
     DateTime CreatedAt,
     DateTime? CompletedAt,
     DateTime? GotItAt,
-    int? DurationSeconds,
-    int? CapturedDurationSeconds,
+    double? DurationSeconds,
+    double? CapturedDurationSeconds,
     IReadOnlyList<GameAttemptResponse> Attempts
 );

@@ -214,7 +214,7 @@ Success: `200 OK`
 
 Response uses the same structure as `PuzzleResponse`.
 
-The backend floors fractional duration values to whole seconds. For example, 12.7 becomes 12.
+The backend rounds duration values to one decimal place using MidpointRounding.AwayFromZero. For example, 2.34 seconds becomes 2.3 seconds, and 2.36 seconds becomes 2.4 seconds.
 
 The first successful Got It capture is retained. Repeated requests do not overwrite the original capture.
 
@@ -313,7 +313,7 @@ Answer submission behavior:
 - A correct answer completes the game.
 - If Got It duration was captured, that duration is used.
 - Otherwise, a duration must be supplied for a correct answer.
-- Fractional durations are floored to whole seconds.
+- Durations are stored and returned with one-decimal-place precision. If a Got It duration was previously captured, that duration takes precedence over the duration supplied with the answer.
 - A completed or abandoned game cannot accept further submissions.
 
 ## 7. Common response structures

@@ -29,8 +29,8 @@ namespace TwentyFourGame.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<int?>("CapturedDurationSeconds")
-                        .HasColumnType("integer")
+                    b.Property<double?>("CapturedDurationSeconds")
+                        .HasColumnType("double precision")
                         .HasColumnName("captured_duration_seconds");
 
                     b.Property<DateTime?>("CompletedAt")
@@ -41,8 +41,8 @@ namespace TwentyFourGame.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<int?>("DurationSeconds")
-                        .HasColumnType("integer")
+                    b.Property<double?>("DurationSeconds")
+                        .HasColumnType("double precision")
                         .HasColumnName("duration_seconds");
 
                     b.Property<DateTime?>("GotItAt")
@@ -76,7 +76,6 @@ namespace TwentyFourGame.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("TwentyFourGame.Domain.Entities.GameAttempt", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 

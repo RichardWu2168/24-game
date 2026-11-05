@@ -78,10 +78,12 @@ public class GameDbContext : DbContext
                 .HasColumnType("timestamp with time zone");
 
             entity.Property(game => game.DurationSeconds)
-                .HasColumnName("duration_seconds");
+                .HasColumnName("duration_seconds")
+                .HasColumnType("double precision");
 
             entity.Property(game => game.CapturedDurationSeconds)
-                .HasColumnName("captured_duration_seconds");
+                .HasColumnName("captured_duration_seconds")
+                .HasColumnType("double precision");
 
             // One session can have many games.
             entity.HasOne(game => game.Session)
