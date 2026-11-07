@@ -1,38 +1,108 @@
-﻿.expression-builder {
-    margin-top: 24px;
+.expression-builder {
+    margin-top: 8px;
 }
 
+    .expression-builder h4 {
+        font-size: 1rem;
+        margin: 0 0 6px;
+    }
+
 .expression-display {
-    min-height: 70px;
-    padding: 16px;
+    min-height: 42px;
+    padding: 7px 10px;
     display: flex;
     align-items: center;
-    background-color: #f8f9fa;
+    background: #f8f9fa;
     border: 1px solid #dee2e6;
-    border-radius: 8px;
+    border-radius: 6px;
     overflow-wrap: anywhere;
 }
 
-.operator-buttons {
+    .expression-display .fs-4 {
+        font-size: 1.1rem !important;
+    }
+
+.expression-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.operator-buttons, .edit-buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 6px;
+    margin: 0;
 }
 
 .operator-button {
-    min-width: 60px;
-    min-height: 50px;
-    font-size: 24px;
+    min-width: 42px;
+    min-height: 38px;
+    padding: 4px 8px;
+    font-size: 1.1rem;
     font-weight: 600;
 }
 
-.edit-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
+.edit-buttons button {
+    min-width: 62px;
+    min-height: 38px;
+    padding: 4px 10px;
 }
 
-    .edit-buttons button {
-        min-width: 90px;
-        min-height: 44px;
+.edit-buttons {
+    padding-left: 8px;
+    border-left: 1px solid #ced4da;
+}
+
+@media (max-width: 540px) {
+    .expression-controls {
+        gap: 6px;
     }
+
+    .operator-button {
+        min-width: 38px;
+    }
+
+    .edit-buttons {
+        padding-left: 0;
+        border-left: 0;
+    }
+}
+
+.expression-builder .btn {
+    font-weight: 700;
+}
+
+.edit-buttons .btn-warning {
+    color: #212529;
+    background: #ffc107;
+    border-color: #d39e00;
+}
+
+    .edit-buttons .btn-warning:hover:not(:disabled) {
+        background: #e0a800;
+        color: #111;
+    }
+
+.edit-buttons .btn-danger {
+    color: #fff;
+    background: #bb2d3b;
+    border-color: #b02a37;
+}
+
+.expression-builder .btn kbd {
+    font-size: .7em;
+    font-weight: 700;
+    padding: 1px 4px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    color: inherit;
+    background: rgba(0,0,0,.12);
+}
+
+.edit-buttons .btn-danger kbd {
+    color: #fff;
+    border-color: rgba(255,255,255,.65);
+}

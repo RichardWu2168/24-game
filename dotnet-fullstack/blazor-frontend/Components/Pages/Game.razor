@@ -1,0 +1,16 @@
+@page "/"
+@page "/game"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Components.Web
+@using TwentyFourGame.Blazor.Components.Game
+
+<PageTitle>Math 24 Game</PageTitle>
+
+<h1 class="text-center game-page-title">Math 24 Game</h1>
+
+<GameBoard ShowDebugInformation="false" />
+
+<style>
+    .game-page-title { font-weight: 700; font-size: 2.15rem; margin-bottom: .6rem; }
+</style>

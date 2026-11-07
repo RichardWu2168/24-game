@@ -1,35 +1,27 @@
-﻿<div class="typed-expression-input mt-4">
+<div class="typed-expression-input mt-4">
 
     <h4>Expression</h4>
 
     <label for="typed-expression"
            class="form-label">
-        Enter your mathematical expression:
+        Enter your mathematical expression and Check Answer:
     </label>
 
-    <textarea id="typed-expression"
-              class="form-control"
-              rows="2"
-              spellcheck="false"
-              autocomplete="off"
-              disabled="@Disabled"
-              value="@Expression"
-              @oninput="HandleInput">
-    </textarea>
+    <input id="typed-expression"
+           type="text"
+           class="form-control typed-expression-field"
+           spellcheck="false"
+           autocomplete="off"
+           autocapitalize="off"
+           disabled="@Disabled"
+           value="@Expression"
+           @oninput="HandleInput" />
 
     <div class="form-text">
         Use the four card numbers exactly once.
         Available operators: +, -, *, /, (, ).
     </div>
 
-    <div class="mt-3">
-        <button type="button"
-                class="btn btn-outline-danger"
-                disabled="@(Disabled || string.IsNullOrEmpty(Expression))"
-                @onclick="ClearAsync">
-            Clear
-        </button>
-    </div>
 
 </div>
 

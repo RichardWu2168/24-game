@@ -12,8 +12,8 @@ using TwentyFourGame.Infrastructure.Persistence;
 namespace TwentyFourGame.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(GameDbContext))]
-    [Migration("20261104154236_PreserveFractionalDurations")]
-    partial class PreserveFractionalDurations
+    [Migration("20261106222533_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

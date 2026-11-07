@@ -316,6 +316,39 @@ Answer submission behavior:
 - Durations are stored and returned with one-decimal-place precision. If a Got It duration was previously captured, that duration takes precedence over the duration supplied with the answer.
 - A completed or abandoned game cannot accept further submissions.
 
+### 6.3 Reveal Solution
+
+`POST /api/gamesessions/{sessionId}/games/{gameId}/reveal-solution`
+
+Request body: None.
+
+Success: `200 OK`
+
+Successful response — Solvable puzzle:
+
+```json
+{
+  "gameId": "5542b2a6-b23c-4c13-afe3-6d9ccb9ad95e",
+  "status": 2,
+  "solvable": true,
+  "expressions": [
+    "((1 * 2) * (3 * 4))",
+    "((1 + 3) * (2 + 4))"
+  ]
+}
+```
+
+Successful response — Unsolvable puzzle
+
+```json
+{
+  "gameId": "5542b2a6-b23c-4c13-afe3-6d9ccb9ad95e",
+  "status": 2,
+  "solvable": false,
+  "expressions": []
+}
+```
+
 ## 7. Common response structures
 
 ### PuzzleResponse

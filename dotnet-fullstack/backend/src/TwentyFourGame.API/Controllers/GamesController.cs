@@ -109,4 +109,23 @@ public class GamesController : ControllerBase
 
         return Ok(result);
     }
+
+    [HttpPost("games/{gameId:guid}/reveal-solution")]
+    public async Task<ActionResult<RevealSolutionResponse>> RevealSolution(
+        Guid sessionId,
+        Guid gameId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _gameService.RevealSolutionAsync(
+            sessionId,
+            gameId,
+            cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
+    }
 }

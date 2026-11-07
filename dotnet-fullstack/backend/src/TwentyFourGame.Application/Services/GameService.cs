@@ -265,6 +265,40 @@ public sealed class GameService : IGameService
         return ToPuzzleResponse(game);
     }
 
+    public async Task<RevealSolutionResponse?> RevealSolutionAsync(
+        Guid sessionId,
+        Guid gameId,
+        CancellationToken cancellationToken = default)
+    {
+        var game = await _gameRepository.GetByIdAsync(
+            gameId,
+            cancellationToken);
+
+        if (game is null || game.SessionId != sessionId)
+        {
+            return null;
+        }
+
+        // Find all unique solutions without modifying game state.
+        IReadOnlyList<string> expressions =
+            GameSolver.FindAllSolutions(game.Numbers);
+
+        // Revealing solutions ends an unfinished game.
+        if (game.Status == GameStatus.InProgress)
+        {
+            game.Abandon();
+
+            await _gameRepository.SaveChangesAsync(
+                cancellationToken);
+        }
+
+        return new RevealSolutionResponse(
+            game.Id,
+            game.Status,
+            expressions.Count > 0,
+            expressions);
+    }
+
     public async Task<GameHistoryResponse?> GetSessionHistoryPageAsync(
         Guid sessionId,
         Guid? cursor = null,

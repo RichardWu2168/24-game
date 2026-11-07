@@ -1131,4 +1131,378 @@ public class GamesControllerTests
         }
     }
 
+    [Fact]
+    public async Task RevealSolution_WhenGameIsInProgress_AbandonsGameAndReturnsValidSolution()
+    {
+        // Arrange: create an active game with known numbers.
+        var game = await CreateGameAsync();
+
+        Assert.Equal(GameStatus.InProgress, game.Status);
+
+        // Act: request a solution through the REST API.
+        var response = await _client.PostAsync(
+            $"/api/gamesessions/{game.SessionId}/games/{game.Id}/reveal-solution",
+            null);
+
+        // Assert: the API returns a successful response.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content
+            .ReadFromJsonAsync<RevealSolutionResponse>();
+
+        Assert.NotNull(result);
+
+        Assert.Equal(game.Id, result.GameId);
+        Assert.Equal(GameStatus.Abandoned, result.Status);
+
+        Assert.True(result.Solvable);
+        Assert.NotEmpty(result.Expressions);
+        Assert.True(
+            result.Expressions.Count > 1,
+            "Expected multiple solutions for cards [1, 2, 3, 4].");
+        Assert.Equal(
+            result.Expressions.Count,
+            result.Expressions.Distinct(StringComparer.Ordinal).Count());
+
+        foreach (string expression in result.Expressions)
+        {
+            AnswerResult validation = GameRules.CheckAnswer(
+                expression,
+                game.Numbers);
+
+            Assert.True(
+                validation.Valid,
+                $"Invalid solution: {expression}. {validation.Message}");
+
+            Assert.Equal(24, validation.Value);
+        }
+
+        // Verify the persisted game state in PostgreSQL.
+        using var scope = _factory.Services.CreateScope();
+
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<GameDbContext>();
+
+        var savedGame = await dbContext.Games
+            .Include(g => g.Attempts)
+            .SingleAsync(g => g.Id == game.Id);
+
+        Assert.Equal(GameStatus.Abandoned, savedGame.Status);
+
+        // Revealing a solution must not complete the game.
+        Assert.Null(savedGame.CompletedAt);
+        Assert.Null(savedGame.DurationSeconds);
+
+        // Revealing a solution must not create an answer attempt.
+        Assert.Empty(savedGame.Attempts);
+
+        // Revealing a solution must not capture Got It.
+        Assert.Null(savedGame.GotItAt);
+        Assert.Null(savedGame.CapturedDurationSeconds);
+    }
+
+    [Theory]
+    [InlineData(GameStatus.Completed)]
+    [InlineData(GameStatus.Abandoned)]
+    public async Task RevealSolution_WhenGameIsFinished_PreservesStatusAndReturnsSolution(
+        GameStatus initialStatus)
+    {
+        // Arrange: create a game with known solvable numbers.
+        var game = await CreateGameAsync();
+
+        if (initialStatus == GameStatus.Completed)
+        {
+            game.AddAttempt("1*2*3*4", true);
+            game.Complete(12.5);
+        }
+        else
+        {
+            game.Abandon();
+        }
+
+        // Persist the initial game state.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<GameDbContext>();
+
+            dbContext.Games.Update(game);
+            dbContext.GameAttempts.AddRange(game.Attempts);
+
+            await dbContext.SaveChangesAsync();
+        }
+
+        // Act: reveal the solution.
+        var response = await _client.PostAsync(
+            $"/api/gamesessions/{game.SessionId}/games/{game.Id}/reveal-solution",
+            null);
+
+        // Assert: the endpoint succeeds.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content
+            .ReadFromJsonAsync<RevealSolutionResponse>();
+
+        Assert.NotNull(result);
+
+        Assert.Equal(game.Id, result.GameId);
+        Assert.Equal(initialStatus, result.Status);
+
+        Assert.True(result.Solvable);
+        Assert.NotEmpty(result.Expressions);
+
+        foreach (string expression in result.Expressions)
+        {
+            AnswerResult validation = GameRules.CheckAnswer(
+                expression,
+                game.Numbers);
+
+            Assert.True(validation.Valid, validation.Message);
+            Assert.Equal(24, validation.Value);
+        }
+
+        // Verify that the persisted game remains unchanged.
+        await AssertGameUnchangedAsync(game);
+    }
+
+    [Fact]
+    public async Task RevealSolution_WhenPuzzleIsUnsolvable_ReturnsNoSolutionAndAbandonsGame()
+    {
+        // Arrange: create a session and an unsolvable game.
+        var session = new GameSession();
+        var game = new Game(session.Id, new[] { 1, 1, 1, 1 });
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<GameDbContext>();
+
+            dbContext.GameSessions.Add(session);
+            dbContext.Games.Add(game);
+
+            await dbContext.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/gamesessions/{session.Id}/games/{game.Id}/reveal-solution",
+            null);
+
+        // Assert: an unsolvable puzzle is not an HTTP error.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content
+            .ReadFromJsonAsync<RevealSolutionResponse>();
+
+        Assert.NotNull(result);
+        Assert.Equal(game.Id, result.GameId);
+        Assert.Equal(GameStatus.Abandoned, result.Status);
+        Assert.False(result.Solvable);
+        Assert.Empty(result.Expressions);
+
+        // Verify persistence.
+        using var verificationScope = _factory.Services.CreateScope();
+
+        var verificationDb = verificationScope.ServiceProvider
+            .GetRequiredService<GameDbContext>();
+
+        var savedGame = await verificationDb.Games
+            .Include(g => g.Attempts)
+            .SingleAsync(g => g.Id == game.Id);
+
+        Assert.Equal(GameStatus.Abandoned, savedGame.Status);
+        Assert.Empty(savedGame.Attempts);
+        Assert.Null(savedGame.CompletedAt);
+        Assert.Null(savedGame.DurationSeconds);
+    }
+
+    [Fact]
+    public async Task RevealSolution_WhenCalledRepeatedly_PreservesAbandonedGame()
+    {
+        // Arrange
+        var game = await CreateGameAsync();
+
+        string endpoint =
+            $"/api/gamesessions/{game.SessionId}/games/{game.Id}/reveal-solution";
+
+        // Act: reveal the solution twice.
+        var firstResponse = await _client.PostAsync(endpoint, null);
+        var secondResponse = await _client.PostAsync(endpoint, null);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+        var firstResult = await firstResponse.Content
+            .ReadFromJsonAsync<RevealSolutionResponse>();
+
+        var secondResult = await secondResponse.Content
+            .ReadFromJsonAsync<RevealSolutionResponse>();
+
+        Assert.NotNull(firstResult);
+        Assert.NotNull(secondResult);
+
+        Assert.Equal(GameStatus.Abandoned, firstResult.Status);
+        Assert.Equal(GameStatus.Abandoned, secondResult.Status);
+
+        Assert.Equal(firstResult.Expressions, secondResult.Expressions);
+
+        // Verify that the game remains abandoned without attempts.
+        using var scope = _factory.Services.CreateScope();
+
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<GameDbContext>();
+
+        var savedGame = await dbContext.Games
+            .Include(g => g.Attempts)
+            .SingleAsync(g => g.Id == game.Id);
+
+        Assert.Equal(GameStatus.Abandoned, savedGame.Status);
+        Assert.Empty(savedGame.Attempts);
+        Assert.Null(savedGame.CompletedAt);
+        Assert.Null(savedGame.DurationSeconds);
+    }
+
+    [Theory]
+    [InlineData(InvalidGameRoute.WrongSession)]
+    [InlineData(InvalidGameRoute.MissingSession)]
+    [InlineData(InvalidGameRoute.MissingGame)]
+    public async Task RevealSolution_WhenSessionOrGameIdIsInvalid_ReturnsNotFoundWithoutMutation(
+        InvalidGameRoute scenario)
+    {
+        // Arrange
+        var game = await CreateGameAsync();
+        var otherGame = await CreateGameAsync();
+
+        var (sessionId, gameId) = GetInvalidGameRoute(
+            game,
+            otherGame,
+            scenario);
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/gamesessions/{sessionId}/games/{gameId}/reveal-solution",
+            null);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        await AssertGameUnchangedAsync(game);
+        await AssertGameUnchangedAsync(otherGame);
+    }
+
+    [Fact]
+    public async Task RevealSolution_WithExistingAttempts_PreservesAttempts()
+    {
+        // Arrange
+        var game = await CreateGameAsync();
+
+        game.AddAttempt("1+2+3+4", false);
+        game.AddAttempt("1*2+3+4", false);
+
+        using (var setupScope = _factory.Services.CreateScope())
+        {
+            var setupDb = setupScope.ServiceProvider
+                .GetRequiredService<GameDbContext>();
+
+            setupDb.Games.Update(game);
+            setupDb.GameAttempts.AddRange(game.Attempts);
+
+            await setupDb.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/gamesessions/{game.SessionId}/games/{game.Id}/reveal-solution",
+            null);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content
+            .ReadFromJsonAsync<RevealSolutionResponse>();
+
+        Assert.NotNull(result);
+        Assert.Equal(GameStatus.Abandoned, result.Status);
+
+        using var verificationScope = _factory.Services.CreateScope();
+
+        var verificationDb = verificationScope.ServiceProvider
+            .GetRequiredService<GameDbContext>();
+
+        var savedGame = await verificationDb.Games
+            .Include(g => g.Attempts)
+            .SingleAsync(g => g.Id == game.Id);
+
+        Assert.Equal(GameStatus.Abandoned, savedGame.Status);
+        Assert.Equal(2, savedGame.Attempts.Count);
+
+        Assert.All(
+            savedGame.Attempts,
+            attempt => Assert.False(attempt.IsCorrect));
+
+        Assert.Equal(
+            game.Attempts.Select(a => a.Id).OrderBy(id => id),
+            savedGame.Attempts.Select(a => a.Id).OrderBy(id => id));
+
+        Assert.Equal(
+            game.Attempts.Select(a => a.Expression).OrderBy(e => e),
+            savedGame.Attempts.Select(a => a.Expression).OrderBy(e => e));
+    }
+
+
+    [Fact]
+    public async Task RevealSolution_AfterGotIt_PreservesCapturedDuration()
+    {
+        // Arrange
+        var game = await CreateGameAsync();
+
+        game.RecordGotIt(12.5);
+
+        using (var setupScope = _factory.Services.CreateScope())
+        {
+            var setupDb = setupScope.ServiceProvider
+                .GetRequiredService<GameDbContext>();
+
+            setupDb.Games.Update(game);
+
+            await setupDb.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/gamesessions/{game.SessionId}/games/{game.Id}/reveal-solution",
+            null);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content
+            .ReadFromJsonAsync<RevealSolutionResponse>();
+
+        Assert.NotNull(result);
+        Assert.Equal(GameStatus.Abandoned, result.Status);
+
+        using var verificationScope = _factory.Services.CreateScope();
+
+        var verificationDb = verificationScope.ServiceProvider
+            .GetRequiredService<GameDbContext>();
+
+        var savedGame = await verificationDb.Games
+            .Include(g => g.Attempts)
+            .SingleAsync(g => g.Id == game.Id);
+
+        Assert.Equal(GameStatus.Abandoned, savedGame.Status);
+
+        Assert.Equal(12.5, savedGame.CapturedDurationSeconds);
+        Assert.Equal(
+            game.GotItAt?.Ticks / 10,
+            savedGame.GotItAt?.Ticks / 10);
+
+        Assert.Null(savedGame.DurationSeconds);
+        Assert.Null(savedGame.CompletedAt);
+
+        Assert.Empty(savedGame.Attempts);
+    }
+
 }

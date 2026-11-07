@@ -34,11 +34,11 @@
         let command = null;
 
         switch (key) {
-            case "c":
+            case "m":
                 command = "click-mode";
                 break;
 
-            case "t":
+            case "k":
                 command = "type-mode";
                 break;
 
@@ -62,6 +62,10 @@
 
             case "a":
                 command = "check-answer";
+                break;
+
+            case "s":
+                command = "show-solution";
                 break;
 
             case "enter":

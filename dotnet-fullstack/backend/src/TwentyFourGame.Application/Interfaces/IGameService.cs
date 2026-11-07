@@ -50,4 +50,9 @@ public interface IGameService
     Task<AnswerCheckResponse> CheckAnswerAsync(
         CheckAnswerRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<RevealSolutionResponse?> RevealSolutionAsync(
+        Guid sessionId,
+        Guid gameId,
+        CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,4 @@
-﻿<div class="expression-builder">
+<div class="expression-builder">
 
     <h4>Expression</h4>
 
@@ -6,7 +6,7 @@
         @if (string.IsNullOrWhiteSpace(Expression))
         {
             <span class="text-muted">
-                Click a card to begin building an expression.
+                Click a card to begin building an expression and Check Answer.
             </span>
         }
         else
@@ -15,7 +15,8 @@
         }
     </div>
 
-    <div class="operator-buttons mt-3">
+    <div class="expression-controls">
+    <div class="operator-buttons">
 
         @foreach (string op in Operators)
         {
@@ -43,22 +44,23 @@
 
     </div>
 
-    <div class="edit-buttons mt-3">
+    <div class="edit-buttons">
 
         <button type="button"
-                class="btn btn-outline-warning"
+                class="btn btn-warning"
                 disabled="@(!CanUndo)"
                 @onclick="UndoAsync">
-            Undo
+            Undo <kbd>Backspace</kbd>
         </button>
 
         <button type="button"
-                class="btn btn-outline-danger"
+                class="btn btn-danger"
                 disabled="@(!CanClear)"
                 @onclick="ClearAsync">
-            Clear
+            Clear <kbd>Del</kbd>
         </button>
 
+    </div>
     </div>
 
 </div>

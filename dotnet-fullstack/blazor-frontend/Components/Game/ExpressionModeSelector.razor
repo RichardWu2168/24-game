@@ -1,4 +1,4 @@
-﻿@using TwentyFourGame.Blazor.Models
+@using TwentyFourGame.Blazor.Models
 
 <div class="expression-mode-selector">
 
@@ -15,7 +15,7 @@
                 aria-pressed="@(Mode == ExpressionInputMode.Click)"
                 disabled="@Disabled"
                 @onclick="() => SelectModeAsync(ExpressionInputMode.Click)">
-            Click Mode
+            Mouse <kbd>M</kbd>
         </button>
 
         <button type="button"
@@ -25,7 +25,7 @@
                 aria-pressed="@(Mode == ExpressionInputMode.Type)"
                 disabled="@Disabled"
                 @onclick="() => SelectModeAsync(ExpressionInputMode.Type)">
-            Type Mode
+            Keyboard <kbd>K</kbd>
         </button>
 
     </div>

@@ -132,4 +132,29 @@ public sealed class GameApiClient
         return true;
     }
 
+    public async Task<RevealSolutionResponse> RevealSolutionAsync(
+    Guid sessionId,
+    Guid gameId)
+    {
+        string endpoint =
+            $"api/gamesessions/{sessionId}/games/{gameId}/reveal-solution";
+
+        using HttpResponseMessage response =
+            await _httpClient.PostAsync(endpoint, null);
+
+        response.EnsureSuccessStatusCode();
+
+        RevealSolutionResponse? result =
+            await response.Content
+                .ReadFromJsonAsync<RevealSolutionResponse>();
+
+        if (result is null)
+        {
+            throw new InvalidOperationException(
+                "The backend returned an empty solution response.");
+        }
+
+        return result;
+    }
+
 }

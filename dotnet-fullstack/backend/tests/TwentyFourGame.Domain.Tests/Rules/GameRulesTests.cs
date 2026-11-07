@@ -1,6 +1,6 @@
 ﻿using TwentyFourGame.Domain.Rules;
 
-namespace TwentyFourGame.Domain.Tests;
+namespace TwentyFourGame.Domain.Tests.Rules;
 
 public class GameRulesTests
 {

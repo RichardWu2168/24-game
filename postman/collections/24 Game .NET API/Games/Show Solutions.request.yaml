@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/gamesessions/{{sessionId}}/games/{{gameId}}/reveal-solution"
+method: POST
+order: 6000

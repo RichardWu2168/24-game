@@ -34,8 +34,8 @@ namespace TwentyFourGame.Infrastructure.Persistence.Migrations
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     completed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     got_it_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    duration_seconds = table.Column<int>(type: "integer", nullable: true),
-                    captured_duration_seconds = table.Column<int>(type: "integer", nullable: true)
+                    duration_seconds = table.Column<double>(type: "double precision", nullable: true),
+                    captured_duration_seconds = table.Column<double>(type: "double precision", nullable: true)
                 },
                 constraints: table =>
                 {

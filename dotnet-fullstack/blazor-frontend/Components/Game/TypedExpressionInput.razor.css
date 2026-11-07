@@ -1,0 +1,24 @@
+.typed-expression-input {
+    margin-top: .45rem !important;
+}
+
+    .typed-expression-input h4 {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: .3rem;
+    }
+
+    .typed-expression-input .form-label {
+        margin-bottom: .2rem;
+    }
+
+.typed-expression-field {
+    height: 42px;
+    min-height: 42px;
+    font-size: 1rem;
+}
+
+.typed-expression-input .form-text {
+    font-size: .8rem;
+    margin-top: .25rem;
+}
