@@ -1,0 +1,43 @@
+name: Backend CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: dotnet-fullstack/backend
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build backend
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish API
+        run: |
+          dotnet publish ./src/TwentyFourGame.API \
+            --configuration Release \
+            --no-restore \
+            --output ./publish
+
+      - name: Upload published API
+        uses: actions/upload-artifact@v4
+        with:
+          name: twentyfourgame-api
+          path: dotnet-fullstack/backend/publish/
