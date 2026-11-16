@@ -1,6 +1,11 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TwentyFourGame.API.Exceptions;
 using TwentyFourGame.Application.DependencyInjection;
 using TwentyFourGame.Infrastructure.DependencyInjection;
+using TwentyFourGame.Infrastructure.Persistence;
+using TwentyFourGame.API.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,12 +18,24 @@ builder.Services.AddOpenApi();
 // Register application and infrastructure services.
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddHealthChecks();
+builder.Services
+    .AddHealthChecks()
+    .AddCheck<PostgresHealthCheck>(
+        "postgresql",
+        tags: new[] { "database" });
 
 var app = builder.Build();
 app.UseExceptionHandler();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = check => !check.Tags.Contains("database")
+});
+
+app.MapHealthChecks("/health/db", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("database")
+});
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
