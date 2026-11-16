@@ -13,10 +13,12 @@ builder.Services.AddOpenApi();
 // Register application and infrastructure services.
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 app.UseExceptionHandler();
 
+app.MapHealthChecks("/health");
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
