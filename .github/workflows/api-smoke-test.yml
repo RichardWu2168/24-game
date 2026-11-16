@@ -2,7 +2,10 @@ name: Production API Smoke Test
 
 on:
   workflow_dispatch:
-
+  push:
+    paths:
+      - '.github/workflows/api-smoke-test.yml'
+      
 jobs:
   smoke-test:
     runs-on: ubuntu-latest
