@@ -1,0 +1,81 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dotnet-fullstack/blazor-frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Blazor Frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: dotnet-fullstack/blazor-frontend
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build frontend
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish frontend
+        run: |
+          dotnet publish \
+            --configuration Release \
+            --no-restore \
+            --output ./publish
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: twentyfourgame-web
+          path: dotnet-fullstack/blazor-frontend/publish/
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy Blazor Frontend to Azure
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: twentyfourgame-web
+          path: ./publish
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy frontend to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: twentyfourgame-web
+          package: ./publish
