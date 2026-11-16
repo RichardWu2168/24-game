@@ -62,4 +62,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: twentyfourgame-database-migration
-          path: dotnet-fullstack/backend/publish/database-migration.sql
+          path: dotnet-fullstack/backend/migration-output/database-migration.sql
+          if-no-files-found: error
