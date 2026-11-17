@@ -9,6 +9,7 @@ The goal is to use all four number cards exactly once, combining them with addit
 - [React + TypeScript Version](https://24-game-rose.vercel.app)
 - [Codex React + TypeScript Experiment](https://24-game-codex.vercel.app)
 - [Node.js Full-Stack Version](https://24-game-fullstack.vercel.app)
+- [.NET Full-Stack Version (Blazor + ASP.NET Core)](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/)
 
 ## Screenshots
 
@@ -23,6 +24,10 @@ The goal is to use all four number cards exactly once, combining them with addit
 ### Node.js + Prisma + PostgreSQL Full-stack Version
 
 ![Fullstack 24 Game](screenshots/fullstack.png)
+
+### .NET Full-Stack Version (Blazor + ASP.NET Core)
+
+![Math 24 Game — Blazor](screenshots/blazor.png)
 
 ## Game Rules
 
@@ -67,11 +72,11 @@ The full-stack version also supports keyboard shortcuts for the main game action
 |---|---|---|
 | React + TypeScript | React, TypeScript, Vite | Live |
 | Codex React + TypeScript Experiment | React, TypeScript, Vite | Live |
-| Node.js Full-Stack | React, TypeScript, Vite, Node.js, Express, Prisma, PostgreSQL | Live; production database initialized |
-| WPF | C#, WPF | Planned |
-| C# + ASP.NET Core | C#, ASP.NET Core Web API | Planned |
-| Angular | Angular, TypeScript | Planned |
+| Node.js Full-Stack | React, TypeScript, Vite, Node.js, Express, Prisma, PostgreSQL | Live |
+| .NET Full-Stack | C#, .NET 10, Blazor Interactive Server, ASP.NET Core Web API, EF Core, PostgreSQL | Live |
+| Angular | Java, PostgreSQL | Planned |
 | .NET MAUI | C#, .NET MAUI | Planned |
+| WPF | C#, WPF | Planned |
 
 ## React + TypeScript Version
 
@@ -146,6 +151,40 @@ Database migrations must be applied to the intended production database before d
 
 Generating Prisma Client or running an ordinary `vercel deploy` does not currently apply migrations. See the [full-stack deployment and migration instructions](nodejs-fullstack/README.md#vercel-deployment-and-production-migrations) for the separate workflow, including protected production credentials.
 
+## .NET Full-Stack Version
+
+Located in [`dotnet-fullstack/`](dotnet-fullstack/), this independent implementation combines a **Blazor Interactive Server** frontend with a layered **ASP.NET Core 10 REST API** and PostgreSQL persistence through **Entity Framework Core 10**.
+
+**Live demo:** [Math 24 Game — Blazor + ASP.NET Core](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/)
+
+### Architecture and features
+
+- **Frontend:** Blazor Interactive Server, with interactive number cards, expression input, timer, **Got It!** control, answer checking, and solution display.
+- **Backend:** ASP.NET Core REST API organized into API, Application, Domain, and Infrastructure layers.
+- **Persistence:** PostgreSQL stores game sessions, games, attempts, and timing information; EF Core manages the schema through migrations.
+- **Session features:** Resume a session, retrieve game history and statistics, and create new puzzles.
+- **Health endpoints:** `/health` checks application availability; `/health/db` checks database connectivity.
+
+### Production deployment
+
+```text
+Browser
+  └── HTTPS / Blazor SignalR → Azure App Service (Blazor frontend)
+                                └── HTTPS REST → Azure App Service (ASP.NET Core API)
+                                                   └── PostgreSQL → Neon
+```
+
+The frontend and API are deployed as **separate Linux .NET 10 Azure App Services**. The production PostgreSQL database is hosted on **Neon**.
+
+Two GitHub Actions workflows automate building and deployment from the `main` branch:
+
+- [Frontend CI/CD](.github/workflows/frontend-ci.yml) builds and publishes Blazor, then deploys the frontend to Azure when relevant frontend files change.
+- [Backend CI/CD](.github/workflows/backend-ci.yml) builds and publishes the API, generates an EF Core migration SQL artifact, and deploys the backend to Azure.
+
+Deployments authenticate to Azure using Microsoft Entra ID **OpenID Connect (OIDC)**. Production connection strings and API URLs are configured through Azure App Service environment variables rather than committed credentials. Database migrations are reviewed and applied separately from application deployment.
+
+For local setup, architecture details, API endpoints, testing, configuration, and deployment notes, see the **[.NET full-stack README](dotnet-fullstack/README.md)**.
+
 ## Project Goals
 
 - Learn and practice different programming languages and frameworks.
@@ -165,7 +204,12 @@ Generating Prisma Client or running an ordinary `vercel deploy` does not current
 - PostgreSQL
 - Prisma
 - C#
-- .NET
+- .NET 10
+- Blazor
+- ASP.NET Core
+- Entity Framework Core
+- Azure App Service
+- GitHub Actions
 
 ## Running the React + TypeScript Version
 
@@ -287,6 +331,16 @@ The full-stack version uses separate Vercel projects for the frontend and backen
 - **Backend URL:** [24-game-nodejs-api.vercel.app](https://24-game-nodejs-api.vercel.app)
 - **Backend Root directory:** `nodejs-fullstack/backend`
 - **Frontend Root directory:** `nodejs-fullstack/frontend`
+
+### .NET Full-Stack Deployment
+
+The .NET implementation is deployed on Azure App Service with separate frontend and API applications and a Neon PostgreSQL database.
+
+- **Frontend:** [Math 24 Game — Blazor](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/)
+- **API:** [ASP.NET Core backend](https://twentyfourgame-api-gghuafa9bcewg3c0.canadaeast-01.azurewebsites.net/)
+- **Documentation:** [Local setup and deployment](dotnet-fullstack/README.md)
+
+GitHub Actions automatically builds and deploys application changes. EF Core database migrations are managed separately.
 
 ## License
 

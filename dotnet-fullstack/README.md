@@ -8,9 +8,13 @@ The frontend and backend are separate applications communicating through HTTPS R
 
 ## Screenshots
 
-### Blazor + ASP.NET Version
+### .NET Full-Stack Version (Blazor + ASP.NET Core)
 
 ![Math 24 Game](../screenshots/blazor.png)
+
+### Backend Solution Architecture
+
+![24 Game architecture](../screenshots/Solution architecture.png)
 
 ## Game Features
 
