@@ -9,6 +9,23 @@ using TwentyFourGame.API.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
+const string BlazorWasmCorsPolicy = "BlazorWasm";
+
+string[] allowedCorsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(BlazorWasmCorsPolicy, policy =>
+    {
+        policy
+            .WithOrigins(allowedCorsOrigins)
+            .WithMethods("GET", "POST")
+            .AllowAnyHeader();
+    });
+});
+
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
@@ -43,6 +60,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseRouting();
+app.UseCors(BlazorWasmCorsPolicy);
 
 app.UseAuthorization();
 
