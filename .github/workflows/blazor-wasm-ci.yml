@@ -1,0 +1,130 @@
+name: Blazor WASM CI/CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dotnet-fullstack/blazor-wasm/**'
+      - '.github/workflows/blazor-wasm-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blazor-wasm-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy Blazor WASM
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: dotnet-fullstack/blazor-wasm
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install .NET 10
+        id: dotnet
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Publish Blazor WASM
+        env:
+          WASM_DOTNET_SDK_VERSION: ${{ steps.dotnet.outputs.dotnet-version }}
+        run: |
+          # Select the installed .NET 10 SDK for this CI build.
+          @{
+              sdk = @{
+                  version = $env:WASM_DOTNET_SDK_VERSION
+                  rollForward = 'latestPatch'
+              }
+          } | ConvertTo-Json | Set-Content -LiteralPath './global.json' -Encoding utf8
+
+          dotnet publish ./TwentyFourGame.BlazorWasm.csproj `
+              --configuration Release `
+              --output "$env:RUNNER_TEMP/wasm-publish"
+
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+      - name: Prepare Vercel output
+        run: |
+          $publishRoot = Join-Path $env:RUNNER_TEMP 'wasm-publish/wwwroot'
+          $outputRoot = './.vercel/output'
+          $staticRoot = Join-Path $outputRoot 'static'
+
+          New-Item -ItemType Directory -Path $staticRoot -Force | Out-Null
+
+          Get-ChildItem -LiteralPath $publishRoot -Force |
+              Copy-Item -Destination $staticRoot -Recurse -Force
+
+          $outputConfig = Join-Path $outputRoot 'config.json'
+          Copy-Item -LiteralPath './deployment/vercel/config.json' `
+              -Destination $outputConfig
+
+          $requiredFiles = @(
+              'index.html'
+              'appsettings.json'
+              'app.css'
+              'css/wasm-host.css'
+              'TwentyFourGame.BlazorWasm.styles.css'
+              'lib/bootstrap/dist/css/bootstrap.min.css'
+              'js/browserStorage.js'
+              'js/gameKeyboard.js'
+          )
+
+          foreach ($relativePath in $requiredFiles) {
+              $filePath = Join-Path $staticRoot $relativePath
+              if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) {
+                  throw "Required published file is missing: $relativePath"
+              }
+          }
+
+          $frameworkPath = Join-Path $staticRoot '_framework'
+          if (-not (Test-Path -LiteralPath $frameworkPath -PathType Container)) {
+              throw 'The published _framework directory is missing.'
+          }
+
+          $configuration = Get-Content -LiteralPath $outputConfig -Raw |
+              ConvertFrom-Json
+          if ($configuration.version -ne 3) {
+              throw 'The Vercel output configuration must use version 3.'
+          }
+
+      - name: Deploy to Vercel production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          foreach ($secretName in @('VERCEL_TOKEN', 'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID')) {
+              $secretValue = [Environment]::GetEnvironmentVariable($secretName)
+              if ([string]::IsNullOrWhiteSpace($secretValue)) {
+                  throw "Required GitHub Actions secret is missing: $secretName"
+              }
+          }
+
+          npx --yes vercel@latest deploy --prebuilt --prod --yes
+
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
