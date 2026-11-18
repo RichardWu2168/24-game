@@ -9,7 +9,8 @@ The goal is to use all four number cards exactly once, combining them with addit
 - [React + TypeScript Version](https://24-game-rose.vercel.app)
 - [Codex React + TypeScript Experiment](https://24-game-codex.vercel.app)
 - [Node.js Full-Stack Version](https://24-game-fullstack.vercel.app)
-- [.NET Full-Stack Version (Blazor + ASP.NET Core)](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/)
+- [.NET — Blazor WebAssembly on Vercel](https://blazor-wasm-beige.vercel.app)
+- [.NET — Blazor Interactive Server on Azure](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/)
 
 ## Screenshots
 
@@ -25,7 +26,7 @@ The goal is to use all four number cards exactly once, combining them with addit
 
 ![Fullstack 24 Game](screenshots/fullstack.png)
 
-### .NET Full-Stack Version (Blazor + ASP.NET Core)
+### .NET Full-Stack Version (Blazor Interactive Server + ASP.NET Core)
 
 ![Math 24 Game — Blazor](screenshots/blazor.png)
 
@@ -40,7 +41,7 @@ The goal is to use all four number cards exactly once, combining them with addit
 
 ## Timer and "Got It!" Button
 
-The timer starts when a new game begins and counts up in `mm:ss`.
+In the original React + TypeScript version, the timer starts when a new game begins and counts up in `mm:ss`.
 
 Typing an answer takes time and doesn't reflect how quickly a player worked it out. When you have the answer in your head, press **Got it!**. The timer stops and its label changes from "Time" to **Thinking time**. You can then type the expression at your own pace.
 
@@ -50,6 +51,8 @@ The timer also stops in these cases:
 - **Show Solutions:** The timer stops when the solutions are shown. The label stays "Time", because a time recorded after seeing the answers is not a thinking time.
 
 Starting a **New Game** resets the timer and its label.
+
+The .NET frontends display elapsed time in `mm:ss.t`. **Got It!** captures the elapsed time through the API, and refreshing the page restores the active puzzle and its timer state. See the [.NET documentation](dotnet-fullstack/README.md) for the Blazor behavior and session restoration details.
 
 ## Keyboard Shortcuts
 
@@ -64,7 +67,9 @@ In the original React + TypeScript version:
 | Show Solutions | `Alt+S` |
 | New Game | `Alt+N` |
 
-The full-stack version also supports keyboard shortcuts for the main game actions. Refer to the implementation's UI for its current shortcuts.
+The Node.js full-stack version also supports keyboard shortcuts for the main game actions. Refer to the implementation's UI for its current shortcuts.
+
+Both .NET frontends support mouse input and keyboard shortcuts. See the [Blazor keyboard shortcuts](dotnet-fullstack/README.md#keyboard-shortcuts) for the complete mapping.
 
 ## Implementations
 
@@ -73,7 +78,7 @@ The full-stack version also supports keyboard shortcuts for the main game action
 | React + TypeScript | React, TypeScript, Vite | Live |
 | Codex React + TypeScript Experiment | React, TypeScript, Vite | Live |
 | Node.js Full-Stack | React, TypeScript, Vite, Node.js, Express, Prisma, PostgreSQL | Live |
-| .NET Full-Stack | C#, .NET 10, Blazor Interactive Server, ASP.NET Core Web API, EF Core, PostgreSQL | Live |
+| .NET Full-Stack | C#, .NET 10, Blazor WebAssembly and Interactive Server, ASP.NET Core Web API, EF Core 10, PostgreSQL | Live |
 | Angular | Java, PostgreSQL | Planned |
 | .NET MAUI | C#, .NET MAUI | Planned |
 | WPF | C#, WPF | Planned |
@@ -153,35 +158,43 @@ Generating Prisma Client or running an ordinary `vercel deploy` does not current
 
 ## .NET Full-Stack Version
 
-Located in [`dotnet-fullstack/`](dotnet-fullstack/), this independent implementation combines a **Blazor Interactive Server** frontend with a layered **ASP.NET Core 10 REST API** and PostgreSQL persistence through **Entity Framework Core 10**.
+Located in [`dotnet-fullstack/`](dotnet-fullstack/), this independent implementation provides two **.NET 10 Blazor frontends** that use the same layered **ASP.NET Core 10 REST API** and **Neon PostgreSQL** database through **Entity Framework Core 10**.
 
-**Live demo:** [Math 24 Game — Blazor + ASP.NET Core](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/)
+| Frontend | Source | Hosting and live demo |
+|---|---|---|
+| Standalone Blazor WebAssembly | [`blazor-wasm/`](dotnet-fullstack/blazor-wasm/) | [Vercel](https://blazor-wasm-beige.vercel.app) |
+| Blazor Interactive Server | [`blazor-frontend/`](dotnet-fullstack/blazor-frontend/) | [Azure App Service](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/) |
+
+The existing Interactive Server application remains available as a separate application. The WebAssembly frontend reuses its game components, CSS, API client, and browser storage helpers in a separate project.
 
 ### Architecture and features
 
-- **Frontend:** Blazor Interactive Server, with interactive number cards, expression input, timer, **Got It!** control, answer checking, and solution display.
+- **Gameplay:** Both frontends provide interactive number cards, mouse and keyboard expression input, a timer, **Got It!**, answer submission, and solution display.
 - **Backend:** ASP.NET Core REST API organized into API, Application, Domain, and Infrastructure layers.
 - **Persistence:** PostgreSQL stores game sessions, games, attempts, and timing information; EF Core manages the schema through migrations.
-- **Session features:** Resume a session, retrieve game history and statistics, and create new puzzles.
+- **Session restoration:** The browser remembers the session ID and input mode; the frontend retrieves the active puzzle and timing state from the API after a refresh.
+- **History and statistics API:** REST endpoints provide game history and session statistics.
 - **Health endpoints:** `/health` checks application availability; `/health/db` checks database connectivity.
 
 ### Production deployment
 
-```text
-Browser
-  └── HTTPS / Blazor SignalR → Azure App Service (Blazor frontend)
-                                └── HTTPS REST → Azure App Service (ASP.NET Core API)
-                                                   └── PostgreSQL → Neon
-```
+Vercel serves the WebAssembly frontend's static files. Its game UI runs in the browser and sends HTTPS REST requests directly to the Azure API. The Interactive Server frontend runs in its existing Linux .NET 10 Azure App Service, uses a Blazor SignalR connection with the browser, and calls the same API from the server. The API runs in a separate Linux .NET 10 Azure App Service and accesses PostgreSQL on Neon.
 
-The frontend and API are deployed as **separate Linux .NET 10 Azure App Services**. The production PostgreSQL database is hosted on **Neon**.
+Browser API requests from WebAssembly require CORS. The API's Azure App Service CORS allowed-origin list permits the Vercel frontend and the local WebAssembly development origin. See the [.NET configuration and deployment documentation](dotnet-fullstack/README.md) for the exact settings.
 
-Two GitHub Actions workflows automate building and deployment from the `main` branch:
+Three GitHub Actions workflows automate building and deployment:
 
-- [Frontend CI/CD](.github/workflows/frontend-ci.yml) builds and publishes Blazor, then deploys the frontend to Azure when relevant frontend files change.
-- [Backend CI/CD](.github/workflows/backend-ci.yml) builds and publishes the API, generates an EF Core migration SQL artifact, and deploys the backend to Azure.
+| Workflow | Automatic trigger | Deployment |
+|---|---|---|
+| [Blazor WASM CI/CD](.github/workflows/blazor-wasm-ci.yml) | Push to `main` changing `dotnet-fullstack/blazor-wasm/**` or the workflow file | Publishes .NET 10 WebAssembly, validates the static output, and deploys the prepared files to Vercel production |
+| [Interactive Server CI/CD](.github/workflows/frontend-ci.yml) | Push to `main` changing `dotnet-fullstack/blazor-frontend/**` or the workflow file | Builds and publishes the existing frontend to Azure |
+| [Backend CI/CD](.github/workflows/backend-ci.yml) | Every push to `main` | Builds and publishes the API, generates an EF Core migration SQL artifact, and deploys to Azure |
 
-Deployments authenticate to Azure using Microsoft Entra ID **OpenID Connect (OIDC)**. Production connection strings and API URLs are configured through Azure App Service environment variables rather than committed credentials. Database migrations are reviewed and applied separately from application deployment.
+All three workflows also support manual dispatch. The WebAssembly production job is restricted to `main`.
+
+The Azure workflows authenticate using Microsoft Entra ID **OpenID Connect (OIDC)**. The Vercel workflow uses the repository secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` to deploy to the existing `blazor-wasm` project. Its first automated deployment has completed successfully.
+
+Database credentials remain in the backend's Azure App Service configuration. The Interactive Server API URL is also configured in Azure; the WebAssembly API URL is public browser configuration in `wwwroot/appsettings.json`. EF Core migrations are reviewed and applied separately: generating the SQL artifact does not execute it against the database.
 
 For local setup, architecture details, API endpoints, testing, configuration, and deployment notes, see the **[.NET full-stack README](dotnet-fullstack/README.md)**.
 
@@ -205,10 +218,13 @@ For local setup, architecture details, API endpoints, testing, configuration, an
 - Prisma
 - C#
 - .NET 10
-- Blazor
+- Blazor WebAssembly
+- Blazor Interactive Server
 - ASP.NET Core
 - Entity Framework Core
 - Azure App Service
+- Vercel
+- Neon
 - GitHub Actions
 
 ## Running the React + TypeScript Version
@@ -334,13 +350,14 @@ The full-stack version uses separate Vercel projects for the frontend and backen
 
 ### .NET Full-Stack Deployment
 
-The .NET implementation is deployed on Azure App Service with separate frontend and API applications and a Neon PostgreSQL database.
+The .NET implementation has a WebAssembly frontend on Vercel and an Interactive Server frontend on Azure App Service. Both use the existing Azure API and Neon PostgreSQL database.
 
-- **Frontend:** [Math 24 Game — Blazor](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/)
+- **WebAssembly frontend:** [Math 24 Game — Blazor WebAssembly](https://blazor-wasm-beige.vercel.app)
+- **Interactive Server frontend:** [Math 24 Game — Blazor Interactive Server](https://twentyfourgame-web-adc8daghhthxb8ab.canadaeast-01.azurewebsites.net/)
 - **API:** [ASP.NET Core backend](https://twentyfourgame-api-gghuafa9bcewg3c0.canadaeast-01.azurewebsites.net/)
 - **Documentation:** [Local setup and deployment](dotnet-fullstack/README.md)
 
-GitHub Actions automatically builds and deploys application changes. EF Core database migrations are managed separately.
+GitHub Actions builds and deploys the three applications through their respective workflows, with path filters for each frontend. EF Core database migrations are managed separately. The [.NET README](dotnet-fullstack/README.md) includes local development, production configuration, and manual WebAssembly deployment instructions.
 
 ## License
 
