@@ -1,0 +1,9 @@
+﻿
+# Include Bootstrap assets required by this frontend.
+!/wwwroot/lib/bootstrap/dist/
+!/wwwroot/lib/bootstrap/dist/**
+
+# Generated Vercel output and local project settings.
+/.vercel/
+.vercel
+.env*

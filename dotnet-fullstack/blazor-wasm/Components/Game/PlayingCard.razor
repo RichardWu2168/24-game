@@ -1,0 +1,52 @@
+﻿<button type="button"
+        class="playing-card @SuitColor @(IsSelected ? "selected" : "")"
+        @onclick="HandleClick"
+        aria-pressed="@IsSelected"
+        aria-label="Card @Number of @SuitName">
+
+    <span class="card-corner">
+        <span class="card-number">@Number</span>
+        <span class="card-suit">@Suit</span>
+    </span>
+
+    <span class="card-center">
+        @Number
+    </span>
+
+    <span class="card-corner bottom">
+        <span class="card-number">@Number</span>
+        <span class="card-suit">@Suit</span>
+    </span>
+
+</button>
+
+@code {
+    [Parameter]
+    public int Number { get; set; }
+
+    [Parameter]
+    public string Suit { get; set; } = "♠";
+
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnClick { get; set; }
+
+    private string SuitColor =>
+        Suit is "♥" or "♦" ? "red" : "black";
+
+    private string SuitName => Suit switch
+    {
+        "♠" => "spades",
+        "♥" => "hearts",
+        "♦" => "diamonds",
+        "♣" => "clubs",
+        _ => "unknown suit"
+    };
+
+    private async Task HandleClick()
+    {
+        await OnClick.InvokeAsync();
+    }
+}

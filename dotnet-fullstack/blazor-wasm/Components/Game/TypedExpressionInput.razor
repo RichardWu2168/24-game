@@ -1,0 +1,62 @@
+<div class="typed-expression-input mt-4">
+
+    <h4>Expression</h4>
+
+    <label for="typed-expression"
+           class="form-label">
+        Enter your mathematical expression and Check Answer:
+    </label>
+
+    <input id="typed-expression"
+           type="text"
+           class="form-control typed-expression-field"
+           spellcheck="false"
+           autocomplete="off"
+           autocapitalize="off"
+           disabled="@Disabled"
+           value="@Expression"
+           @oninput="HandleInput" />
+
+    <div class="form-text">
+        Use the four card numbers exactly once.
+        Available operators: +, -, *, /, (, ).
+    </div>
+
+
+</div>
+
+@code {
+    [Parameter]
+    public string Expression { get; set; } = "";
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public EventCallback<string> ExpressionChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+
+    private async Task HandleInput(ChangeEventArgs args)
+    {
+        if (Disabled)
+        {
+            return;
+        }
+
+        string value = args.Value?.ToString() ?? "";
+
+        await ExpressionChanged.InvokeAsync(value);
+    }
+
+    private async Task ClearAsync()
+    {
+        if (Disabled)
+        {
+            return;
+        }
+
+        await OnClear.InvokeAsync();
+    }
+}

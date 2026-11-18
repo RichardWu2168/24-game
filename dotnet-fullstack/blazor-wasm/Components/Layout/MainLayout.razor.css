@@ -1,0 +1,12 @@
+.game-main {
+    width: 100%;
+    min-height: 100vh;
+    padding: 12px 20px;
+    background-color: #ffffff;
+}
+
+@media (max-width: 768px) {
+    .game-main {
+        padding: 10px;
+    }
+}

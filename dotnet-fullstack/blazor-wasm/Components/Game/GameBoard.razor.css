@@ -1,0 +1,58 @@
+/* Main game container */
+.game-board {
+    width: 100%;
+    max-width: 850px;
+    margin: 0 auto;
+}
+
+/* Center the playing cards */
+.game-cards {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    width: 100%;
+    margin: 12px auto;
+}
+
+/* Center the timer and action buttons */
+.game-timer-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin: 12px auto;
+}
+
+/* Center the input mode selector */
+.game-input-mode {
+    display: flex;
+    justify-content: center;
+    margin: 12px auto;
+}
+
+/* Center the expression builder */
+.game-expression {
+    width: 100%;
+    max-width: 760px;
+    margin: 12px auto;
+}
+
+/* Center Check Answer and Show Solution */
+.game-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 12px auto;
+}
+
+/* Center the results area */
+.game-results {
+    width: 100%;
+    max-width: 760px;
+    margin: 12px auto;
+}

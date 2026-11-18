@@ -1,0 +1,176 @@
+﻿@using System.Diagnostics
+@implements IAsyncDisposable
+
+<div class="game-timer">
+
+    <h4>Thinking Time</h4>
+
+    <div class="timer-display">
+        @FormattedTime
+    </div>
+
+    <div class="timer-status">
+        @if (IsRunning)
+        {
+            <span class="text-success">Thinking...</span>
+        }
+        else if (HasStopped)
+        {
+            <span class="text-primary">Time captured</span>
+        }
+        else
+        {
+            <span class="text-muted">Ready</span>
+        }
+    </div>
+
+</div>
+
+@code {
+
+    private double initialElapsedSeconds;
+
+    private readonly Stopwatch stopwatch = new();
+
+    private CancellationTokenSource? timerCancellation;
+
+    private Task? timerTask;
+
+    private bool hasStopped;
+
+    private double? confirmedDurationSeconds;
+
+    public bool IsRunning => stopwatch.IsRunning;
+
+    public bool HasStopped => hasStopped;
+
+    public double ElapsedSeconds =>
+        initialElapsedSeconds + stopwatch.Elapsed.TotalSeconds;
+
+    private string FormattedTime
+    {
+        get
+        {
+            double seconds = confirmedDurationSeconds
+                ?? ElapsedSeconds;
+
+            double roundedSeconds = Math.Round(
+                seconds,
+                1,
+                MidpointRounding.AwayFromZero);
+
+            TimeSpan elapsed = TimeSpan.FromSeconds(roundedSeconds);
+
+            int minutes = (int)elapsed.TotalMinutes;
+            int remainingSeconds = elapsed.Seconds;
+            int tenths = elapsed.Milliseconds / 100;
+
+            return $"{minutes:00}:{remainingSeconds:00}.{tenths}";
+        }
+    }
+
+    public async Task ConfirmDurationAsync(double durationSeconds)
+    {
+        stopwatch.Stop();
+        hasStopped = true;
+
+        confirmedDurationSeconds = durationSeconds;
+
+        await StopUpdateLoopAsync();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async Task StartAsync(double elapsedSeconds = 0)
+    {
+        await StopUpdateLoopAsync();
+
+        initialElapsedSeconds = Math.Max(0, elapsedSeconds);
+
+        stopwatch.Restart();
+
+        hasStopped = false;
+        confirmedDurationSeconds = null;
+
+        timerCancellation = new CancellationTokenSource();
+
+        timerTask = UpdateDisplayAsync(
+            timerCancellation.Token);
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async Task<double> StopAsync()
+    {
+        stopwatch.Stop();
+        hasStopped = true;
+
+        double duration = ElapsedSeconds;
+
+        await StopUpdateLoopAsync();
+
+        await InvokeAsync(StateHasChanged);
+
+        return duration;
+    }
+
+    public async Task RestoreCapturedDurationAsync(double durationSeconds)
+    {
+        await StopUpdateLoopAsync();
+
+        stopwatch.Reset();
+
+        initialElapsedSeconds = 0;
+        confirmedDurationSeconds = durationSeconds;
+
+        hasStopped = true;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task UpdateDisplayAsync(
+        CancellationToken cancellationToken)
+    {
+        using PeriodicTimer timer =
+            new(TimeSpan.FromMilliseconds(100));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(
+                cancellationToken))
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when the timer is stopped.
+        }
+    }
+
+    private async Task StopUpdateLoopAsync()
+    {
+        if (timerCancellation is null)
+        {
+            return;
+        }
+
+        await timerCancellation.CancelAsync();
+
+        if (timerTask is not null)
+        {
+            await timerTask;
+        }
+
+        timerCancellation.Dispose();
+        timerCancellation = null;
+        timerTask = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        stopwatch.Stop();
+
+        await StopUpdateLoopAsync();
+    }
+}

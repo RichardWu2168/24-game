@@ -1,0 +1,173 @@
+@using TwentyFourGame.Blazor.Models
+
+<div class="game-board">
+    <div class="game-toolbar">
+        <p class="game-instructions">Use all four numbers exactly once to make <strong>24</strong> using +, −, ×, ÷ and parentheses.</p>
+        @if (currentSessionId is not null && puzzle is null)
+        {
+            <button type="button" class="btn btn-primary new-game-button"
+                    disabled="@(!CanCreatePuzzle)" @onclick="CreatePuzzleAsync">
+                New Game <kbd>N</kbd>
+            </button>
+        }
+    </div>
+
+    @if (ShowDebugInformation && isRestoringSession)
+    {
+        <p>Restoring game session...</p>
+    }
+    else if (ShowDebugInformation && sessionRestorationCompleted && currentSessionId is not null)
+    {
+        <div class="alert alert-info debug-panel">Session restored. Session ID: @currentSessionId</div>
+    }
+
+    @if (sessionRestorationCompleted && currentSessionId is null && !isRestoringSession && !isInitializingGame)
+    {
+        <p class="text-muted mt-3">
+            Preparing your game...
+        </p>
+    }
+
+    @if (ShowDebugInformation && currentSessionId is not null)
+    {
+        <div class="alert alert-success debug-panel">Session ID: @currentSessionId.Value</div>
+    }
+
+    @if (puzzle is not null)
+    {
+        @if (ShowDebugInformation)
+        {
+            <div class="alert alert-info debug-panel">
+                Game ID: @puzzle.Id · Numbers: @string.Join(", ", puzzle.Numbers) · Started: @puzzle.StartedAt
+            </div>
+        }
+
+        <section class="play-area" aria-label="Puzzle cards and timer">
+            <div class="game-cards">
+                @for (int i = 0; i < puzzle.Numbers.Length; i++)
+                {
+                    int cardIndex = i;
+                    <PlayingCard @key="cardIndex"
+                                 Number="@puzzle.Numbers[cardIndex]"
+                                 Suit="@GetSuit(cardIndex)"
+                                 IsSelected="@usedCardIndices.Contains(cardIndex)"
+                                 OnClick="@(() => AddNumber(cardIndex))" />
+                }
+            </div>
+
+            <div class="game-timer-actions">
+                <GameTimer @ref="gameTimer" />
+
+                <button type="button"
+                        class="btn btn-success fw-bold"
+                        disabled="@(!CanCaptureThinkingTime)"
+                        @onclick="CaptureThinkingTimeAsync">
+                    @(isSavingGotIt ? "Saving..." : "Got It!")
+                    <kbd>Space</kbd>
+                </button>
+
+                <button type="button"
+                        class="btn btn-primary fw-bold"
+                        disabled="@(!CanCreatePuzzle)"
+                        @onclick="CreatePuzzleAsync">
+                    New Game
+                    <kbd>N</kbd>
+                </button>
+            </div>
+        </section>
+
+        @if (ShowDebugInformation && gotItSaved)
+        {
+            <div class="alert alert-success debug-panel">Thinking time saved: @puzzle.CapturedDurationSeconds seconds</div>
+        }
+
+        <section class="expression-area" aria-label="Build your expression">
+            <ExpressionModeSelector Mode="@inputMode" Disabled="@(!CanEditGame)"
+                                    OnModeChanged="@ChangeInputMode" />
+
+            @if (inputMode == ExpressionInputMode.Click)
+            {
+                <ExpressionBuilder Expression="@ExpressionText"
+                                   CanAddOperator="@(CanEditGame && CanAddOperator)"
+                                   CanAddOpenParenthesis="@(CanEditGame && CanAddOpenParenthesis)"
+                                   CanAddCloseParenthesis="@(CanEditGame && CanAddCloseParenthesis)"
+                                   CanUndo="@(CanEditGame && CanEditExpression)"
+                                   CanClear="@(CanEditGame && CanEditExpression)"
+                                   OnOperatorSelected="@AddOperator"
+                                   OnParenthesisSelected="@AddParenthesis"
+                                   OnUndo="@Undo" OnClear="@ClearExpression" />
+            }
+            else
+            {
+                <TypedExpressionInput Expression="@typedExpression"
+                                      Disabled="@(!CanEditGame)"
+                                      ExpressionChanged="@UpdateTypedExpression"
+                                      OnClear="@ClearTypedExpression" />
+            }
+
+            <div class="game-actions">
+                <button type="button" class="btn btn-success"
+                        disabled="@(!CanSubmitAnswer)" @onclick="SubmitAnswerAsync">
+                    @(isSubmittingAnswer ? "Checking..." : "Check Answer") <kbd>A</kbd>
+                </button>
+                <button type="button" class="btn btn-outline-info"
+                        disabled="@(!CanRevealSolution)" @onclick="RevealSolutionAsync">
+                    @(isRevealingSolution ? "Finding Solutions..." : "Show Solution") <kbd>S</kbd>
+                </button>
+            </div>
+        </section>
+
+        @if (answerResult is not null || solutionResult is not null)
+        {
+            <section class="results-area" aria-label="Game results">
+                @if (answerResult is not null)
+                {
+                    <div class="alert @(answerResult.Valid ? "alert-success" : "alert-warning") result-alert">
+                        <strong>@(answerResult.Valid ? "Correct!" : "Not quite!")</strong>
+                        @answerResult.Message
+                        @if (answerResult.Value is not null)
+                        {
+                            <span>Expression value: @answerResult.Value</span>
+                        }
+                    </div>
+                }
+                @if (solutionResult is not null)
+                {
+                    <div class="alert alert-info result-alert">
+                        @if (solutionResult.Solvable && solutionResult.Expressions.Count > 0)
+                        {
+                            <strong>Solutions (@solutionResult.Expressions.Count)</strong>
+                            <ol class="solution-list">
+                                @foreach (string expression in solutionResult.Expressions)
+                                {
+                                    <li><code>@FormatSolution(expression)</code></li>
+                                }
+                            </ol>
+                        }
+                        else
+                        {
+                            <span>No solution exists for these four numbers.</span>
+                        }
+                    </div>
+                }
+            </section>
+        }
+
+        @if (ShowDebugInformation)
+        {
+            <div class="debug-panel">
+                <strong>Used cards:</strong>
+                @(usedCardIndices.Count == 0 ? "None" : string.Join(", ", usedCardIndices.Select(index => puzzle.Numbers[index])))
+            </div>
+        }
+    }
+
+    @if (isLoading)
+    {
+        <p class="status-message">Processing request...</p>
+    }
+    @if (errorMessage is not null)
+    {
+        <div class="alert alert-danger result-alert">@errorMessage</div>
+    }
+</div>
