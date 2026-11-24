@@ -1,0 +1,18 @@
+{
+  "folders": [
+    { "name": "Math 24 Angular + Java", "path": "." }
+  ],
+  "extensions": {
+    "recommendations": [
+      "Angular.ng-template",
+      "vscjava.vscode-java-pack",
+      "vmware.vscode-boot-dev-pack"
+    ]
+  },
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/target": true
+    }
+  }
+}

@@ -1,0 +1,13 @@
+# Local environment files and credentials
+.env
+.env.*
+!.env.example
+
+# Generated dependencies and build output
+node_modules/
+dist/
+target/
+.angular/
+
+# Local logs
+*.log
