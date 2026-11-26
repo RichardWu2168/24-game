@@ -1,59 +1,49 @@
-# Frontend
+# Math 24 Angular frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.3.0.
+Angular 22.3, standalone components, signals, SCSS, and Vitest. The Java API owns
+expression validation, automatic parentheses, puzzle generation, and saved
+outcomes. Angular owns the screen, browser timing, draft restoration, and safe
+retry of pending actions.
 
-## Development server
+## Run locally
 
-To start a local development server, run:
+Start PostgreSQL and the Java API using the launchers in the parent directory.
+Then run in this directory:
 
-```bash
-ng serve
+```powershell
+npm.cmd ci
+npm.cmd start
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Open [http://localhost:4200](http://localhost:4200). The development proxy sends
+`/api/**` to `http://127.0.0.1:8080`; restart Angular after editing
+`proxy.conf.json`. No guest credential or database password belongs in that
+configuration.
 
-## Code scaffolding
+## Verify
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+```powershell
+npm.cmd test -- --watch=false
+npm.cmd run build
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+The tests do not require Java or PostgreSQL. The production files are generated
+in `dist/frontend/browser`. The development proxy is not included in that
+build; deployment must route `/api/v1` to the Java service or configure the
+`GAME_API_BASE_URL` provider and exact allowed origins.
 
-```bash
-ng generate --help
-```
+## Main files
 
-## Building
+| Location | Responsibility |
+| --- | --- |
+| `src/app/features/game/game-screen.*` | Responsive game screen, input, feedback, rules, and statistics |
+| `src/app/features/game/game.store.ts` | Round state, timing, restoration, and mutation sequencing |
+| `src/app/core/game-api.ts` | Typed HTTP requests and request timeout |
+| `src/app/core/game.models.ts` | API response and pending-action types |
+| `src/app/core/game-storage.ts` | Guest credential encoding and stored-journal validation |
+| `src/app/core/game-browser.ts` | Injectable browser storage, clock, visibility, and tab ownership |
+| `proxy.conf.json` | Local development API routing |
 
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+See [the gameplay guide](../docs/angular-gameplay.md) for the play flow, recovery
+behavior, and manual checks. See [the project README](../README.md) for the
+Windows toolchain and backend/database commands.

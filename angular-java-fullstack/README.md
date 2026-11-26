@@ -3,13 +3,12 @@
 This directory contains the independent Angular, Java, and PostgreSQL
 implementation of Math 24.
 
-**Current milestone:** the Java game engine is connected to a REST API and
-PostgreSQL persistence. The backend supports guest sessions, solvable rounds,
-browser-measured thinking time, answer attempts, automatic parentheses,
-reveal/skip actions, history, statistics, and safe retries. Flyway owns the
-database schema, and focused tests cover the engine and API/database workflows.
-The Angular welcome page is still present; the playable UI and browser
-restoration logic are the next milestone.
+**Current milestone:** the Angular gameplay screen connects to the Java REST
+API and PostgreSQL. Players can start a solvable puzzle, capture their thinking
+time, enter an answer, see automatic-parentheses assistance, reveal or skip,
+and continue to the next puzzle. The browser restores the current round, draft,
+and timer after refresh and retains pending actions for safe retry. Simple
+guest-session statistics appear alongside the game.
 
 The agreed product behavior is recorded in
 [design-decisions.md](docs/design-decisions.md).
@@ -17,6 +16,8 @@ See [the Java game engine guide](docs/java-game-engine.md) for its public API,
 input rules, examples, puzzle selection, and tests.
 See [the Java game API guide](docs/java-game-api.md) for guest access, endpoint
 contracts, timing, retries, database tables, and PowerShell examples.
+See [the Angular gameplay guide](docs/angular-gameplay.md) for the screen,
+browser state, local API connection, and verification checklist.
 
 ## Toolchain
 
@@ -40,8 +41,9 @@ compatible versions of Hibernate, Flyway, the JDBC driver, and the test librarie
 | Path | Purpose |
 | --- | --- |
 | frontend/ | Angular application, local CLI, and Vitest |
-| frontend/src/app/features/ | Reserved folders for game, history, statistics, and rules |
-| frontend/src/app/core/ | Future application-wide API and state services |
+| frontend/src/app/features/game/ | Gameplay screen and signal-based game state |
+| frontend/src/app/core/ | Typed game API, response models, and browser adapter |
+| frontend/src/app/features/history/, statistics/, rules/ | Reserved for future standalone screens |
 | frontend/src/app/shared/ | Future reusable presentation components |
 | backend/ | Spring Boot Maven project |
 | backend/src/main/java/io/math24/game/ | API, application, domain, and persistence package boundaries |
@@ -113,7 +115,7 @@ This script:
 1. Checks that Node.js is compatible and selects a JDK 25 installation.
 2. Creates infra/.env with a random local database password if the file is absent.
 3. Preserves an existing infra/.env.
-4. Runs npm ci, the Angular production build, and its starter unit tests.
+4. Runs npm ci, the Angular production build, and its unit tests.
 5. Runs the Maven Wrapper version check and test-compile.
 
 The Java test-compile goal compiles application and test code; it does not run
@@ -224,11 +226,20 @@ Set-Location 'C:/Projects/24-game/angular-java-fullstack/frontend'
 npm.cmd start
 ```
 
-Open [http://localhost:4200/](http://localhost:4200/) to see the generated Angular
-welcome page. Use Ctrl+C to stop it.
+Open [http://localhost:4200/](http://localhost:4200/) and choose **Start puzzle**.
+Keep PostgreSQL and the backend running. Angular proxies `/api/**` to
+`http://127.0.0.1:8080`, so the browser uses the same origin for the page and game
+requests. Use Ctrl+C to stop the development server.
 
-The frontend is not connected to game endpoints yet. That belongs to the next
-implementation milestone.
+To verify the frontend without starting PostgreSQL or Java:
+
+```powershell
+npm.cmd test -- --watch=false
+npm.cmd run build
+```
+
+These unit tests use controlled clocks and API responses. The interactive game
+itself requires the running backend and database.
 
 To open the complete project in VS Code:
 
@@ -279,7 +290,7 @@ Verified in the development workspace:
 
 - Angular dependencies installed successfully.
 - Angular production build passed.
-- Both generated Angular tests passed.
+- The original generated Angular tests passed at the scaffold milestone.
 - Maven Wrapper ran on Microsoft JDK 25.
 - Backend application and starter test source compiled successfully.
 
@@ -298,6 +309,14 @@ PostgreSQL 18.7 passed **132 tests**: 80 domain cases, 51 API/database cases, an
 the Spring context startup test, with zero failures, errors, or skips. Maven
 also produced the executable Spring Boot JAR. The test JVM loads Mockito as an
 explicit agent so it does not depend on dynamic self-attachment on Java 25.
+
+For the Angular gameplay milestone, **55 frontend tests** passed, covering the
+screen, HTTP contract, stored state, timing, and recovery. The production build
+passed at approximately 291 kB of initial files (78 kB estimated transfer).
+Live browser checks against the Java API and PostgreSQL verified solving,
+automatic parentheses, incorrect-answer correction, refresh restoration,
+reveal/skip, multiple-tab handling, and recovery after an API outage. The
+responsive layout was also checked at 320- and 390-pixel widths.
 
 ## Official setup references
 

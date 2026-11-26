@@ -1,0 +1,398 @@
+<div class="game-shell">
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Math24 home">
+      <span class="brand-mark" aria-hidden="true">24</span>
+      <span>Math<span class="brand-accent">24</span></span>
+    </a>
+    <div class="header-actions">
+      <span class="practice-label">A little number practice.</span>
+      <button
+        #rulesButton
+        class="button button-quiet"
+        type="button"
+        aria-controls="how-to-play"
+        [attr.aria-expanded]="rulesOpen()"
+        (click)="rulesOpen.set(!rulesOpen())"
+      >
+        How to play
+      </button>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="page-intro" aria-labelledby="game-title">
+      <div>
+        <p class="eyebrow">Four numbers. One goal.</p>
+        <h1 id="game-title">Make it <span>24.</span></h1>
+        <p>Use every card once. Find your own way to 24.</p>
+      </div>
+      <span class="practice-badge"><span aria-hidden="true"></span> Just for practice</span>
+    </section>
+
+    @if (rulesOpen()) {
+      <section class="rules-panel" id="how-to-play" aria-labelledby="rules-title">
+        <div class="rules-heading">
+          <h2 id="rules-title">A few simple rules</h2>
+          <button class="button button-quiet" type="button" (click)="closeRules()">
+            Close rules
+          </button>
+        </div>
+        <ol>
+          <li>Use all four cards exactly once. Repeated numbers are separate cards.</li>
+          <li>Combine them with +, −, × and ÷. Every step must give a nonnegative whole number.</li>
+          <li>
+            Press <strong>Got It!</strong> when you have a solution, then type or tap your answer.
+          </li>
+          <li>
+            Parentheses are optional. We can add them while keeping your numbers and operators in
+            order. If you type parentheses, we follow them exactly.
+          </li>
+        </ol>
+        <p>
+          Every puzzle has a solution. Your thinking time continues while you are away, stops at 30
+          minutes, and stays fixed if you correct an answer.
+        </p>
+      </section>
+    }
+
+    @if (store.error(); as error) {
+      <section class="connection-message" role="status" aria-live="polite">
+        <div>
+          <h2>
+            {{ store.otherTab() ? 'Your game is open in another tab' : 'Let’s keep your place' }}
+          </h2>
+          <p>{{ error }}</p>
+        </div>
+        @if (store.canRetry()) {
+          <button class="button button-secondary" type="button" (click)="store.retry()">
+            Retry connection
+          </button>
+        }
+      </section>
+    } @else if (store.otherTab()) {
+      <section class="connection-message" role="status" aria-live="polite">
+        <div>
+          <h2>Your game is open in another tab</h2>
+          <p>Close that tab, then continue your puzzle here.</p>
+        </div>
+        <button
+          class="button button-secondary"
+          type="button"
+          [disabled]="!store.canRetry()"
+          (click)="store.retry()"
+        >
+          Retry connection
+        </button>
+      </section>
+    }
+
+    @if (store.notice(); as notice) {
+      <p class="notice" role="status" aria-live="polite">{{ notice }}</p>
+    }
+
+    <div class="play-layout">
+      <section class="puzzle-panel" aria-label="Your puzzle" [attr.aria-busy]="store.loading()">
+        <div class="panel-heading">
+          <h2 class="eyebrow">Your four cards</h2>
+          <span class="state-label" [class.solved]="store.round()?.outcome === 'SOLVED'">
+            <span aria-hidden="true"></span>{{ stateLabel() }}
+          </span>
+        </div>
+
+        <div class="cards" aria-label="Puzzle cards">
+          @if (store.round(); as round) {
+            @for (card of round.cards; track $index) {
+              <button
+                class="playing-card"
+                type="button"
+                [class.red-suit]="$index === 1 || $index === 3"
+                [disabled]="!store.canEditAnswer()"
+                [attr.aria-label]="
+                  'Card ' +
+                  ($index + 1) +
+                  ': ' +
+                  card +
+                  (store.canEditAnswer() ? ', insert into your expression' : '')
+                "
+                (click)="insert(card.toString())"
+              >
+                <span class="card-corner" aria-hidden="true"
+                  >{{ card }}<span>{{ suits[$index] }}</span></span
+                >
+                <span class="card-value" aria-hidden="true">{{ card }}</span>
+                <span class="card-corner card-corner-bottom" aria-hidden="true"
+                  >{{ card }}<span>{{ suits[$index] }}</span></span
+                >
+              </button>
+            }
+          } @else {
+            @for (card of placeholderCards; track card) {
+              <div class="playing-card card-back" aria-hidden="true"><span>24</span></div>
+            }
+          }
+        </div>
+
+        @if (store.loading()) {
+          <div class="board-message" role="status">
+            <span class="loading-dot" aria-hidden="true"></span>
+            <h2>Opening your practice…</h2>
+            <p>We’ll have your place ready in a moment.</p>
+          </div>
+        } @else if (!store.round()) {
+          <div class="board-message">
+            <h2>A fresh puzzle awaits.</h2>
+            <p>Four cards, a few operations, and a little thinking.</p>
+            <button
+              class="button button-primary start-button"
+              type="button"
+              [disabled]="!store.canStart()"
+              (click)="store.startRound()"
+            >
+              {{ store.busy() ? 'Preparing puzzle…' : 'Start puzzle' }}
+            </button>
+          </div>
+        } @else if (store.round()?.outcome === 'ACTIVE') {
+          @if (store.capturedMs() === null) {
+            <div class="board-message thinking-message">
+              <div class="target-number" aria-hidden="true">= <strong>24</strong></div>
+              <h2>Take a moment. See the possibilities.</h2>
+              <p>
+                When you have a solution, press <strong>Got It!</strong> to freeze your time and
+                enter your answer.
+              </p>
+            </div>
+          } @else {
+            <form class="answer-form" (submit)="submit($event)">
+              <div class="field-heading">
+                <label for="answer-expression">Your expression</label><span>Target: 24</span>
+              </div>
+              <input
+                #expressionInput
+                id="answer-expression"
+                name="expression"
+                type="text"
+                inputmode="text"
+                autocomplete="off"
+                autocapitalize="off"
+                [spellcheck]="false"
+                maxlength="256"
+                aria-describedby="expression-hint"
+                [value]="store.draft()"
+                [disabled]="!store.canEditAnswer()"
+                (input)="updateExpression($event)"
+                placeholder="Type your answer, or tap the cards"
+              />
+              <p class="field-hint" id="expression-hint">
+                Use +, −, * or /. We can add parentheses for you when you check your answer.
+              </p>
+              @if (store.busy() && store.pending()?.kind === 'TIMING') {
+                <p class="field-hint" role="status">
+                  Saving your time… You can enter your answer now.
+                </p>
+              }
+              <div class="expression-tools" aria-label="Expression controls">
+                <div class="operator-buttons">
+                  @for (operator of operators; track operator.value) {
+                    <button
+                      type="button"
+                      class="operator-button"
+                      [disabled]="!store.canEditAnswer()"
+                      [attr.aria-label]="operator.label"
+                      (click)="insert(operator.value)"
+                    >
+                      {{ operator.text }}
+                    </button>
+                  }
+                </div>
+                <div class="edit-buttons">
+                  <button
+                    class="button button-quiet"
+                    type="button"
+                    [disabled]="!store.canEditAnswer() || !store.draft()"
+                    (click)="backspace()"
+                  >
+                    Backspace
+                  </button>
+                  <button
+                    class="button button-quiet"
+                    type="button"
+                    [disabled]="!store.canEditAnswer() || !store.draft()"
+                    (click)="clearExpression()"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <button
+                class="button button-primary check-button"
+                type="submit"
+                [disabled]="!store.canSubmit()"
+              >
+                {{
+                  store.busy() && store.pending()?.kind === 'ANSWER'
+                    ? 'Checking answer…'
+                    : 'Check answer'
+                }}
+              </button>
+            </form>
+            @if (store.lastAnswer(); as answer) {
+              @if (answer.status !== 'CORRECT') {
+                <div class="answer-feedback" role="status" aria-live="polite">
+                  <h3>Give it another try.</h3>
+                  <p>{{ answer.message }}</p>
+                  @if (answer.interpretedExpression && answer.value !== null) {
+                    <p class="checked-expression">
+                      Checked: <code>{{ answer.interpretedExpression }} = {{ answer.value }}</code>
+                    </p>
+                  }
+                  <p class="feedback-note">
+                    Your thinking time is saved. Take your time with the correction.
+                  </p>
+                </div>
+              }
+            }
+          }
+          <div class="round-actions">
+            <button
+              class="button button-quiet"
+              type="button"
+              [disabled]="!store.canFinish()"
+              (click)="store.revealSolution()"
+            >
+              Reveal solution
+            </button>
+            <button
+              class="button button-quiet"
+              type="button"
+              [disabled]="!store.canFinish()"
+              (click)="store.skipRound()"
+            >
+              Skip puzzle
+            </button>
+          </div>
+        } @else {
+          <div class="round-result" role="status" aria-live="polite">
+            @if (store.round()?.outcome === 'SOLVED') {
+              <p class="result-label">Puzzle solved</p>
+              <h2>You made 24.</h2>
+              <p class="solution-expression">
+                <code>{{ store.round()?.acceptedExpression }} = 24</code>
+              </p>
+              @if (store.round()?.assisted) {
+                <p class="assistance-note">
+                  Parentheses added for you. Your numbers and operators stayed in the same order.
+                </p>
+              } @else {
+                <p>Nicely worked out. Ready for another?</p>
+              }
+            } @else if (store.round()?.outcome === 'REVEALED') {
+              <p class="result-label">Solution revealed</p>
+              <h2>One way to make 24.</h2>
+              <p class="solution-expression">
+                <code>{{ store.round()?.revealedSolution }} = 24</code>
+              </p>
+              <p>A new puzzle is another chance to practice.</p>
+            } @else {
+              <p class="result-label">Puzzle skipped</p>
+              <h2>Try a new set of numbers.</h2>
+              <p>A fresh puzzle is ready when you are.</p>
+            }
+          </div>
+          <div class="next-action">
+            <button
+              class="button button-primary"
+              type="button"
+              [disabled]="!store.canStart()"
+              (click)="store.startRound()"
+            >
+              {{ store.busy() ? 'Preparing puzzle…' : 'Next puzzle' }}
+            </button>
+          </div>
+        }
+      </section>
+
+      <aside class="thinking-panel" aria-labelledby="thinking-title">
+        <div>
+          <h2 class="eyebrow" id="thinking-title">Thinking time</h2>
+          <p class="timer" aria-label="Thinking time">
+            @if (
+              store.round() && store.round()?.outcome !== 'ACTIVE' && store.capturedMs() === null
+            ) {
+              <span>—</span>
+            } @else {
+              <span>{{ formatTime(store.elapsedMs(), true) }}</span>
+            }
+          </p>
+          <div class="timer-description">
+            @if (store.isCapped()) {
+              <p class="time-saved">30-minute limit reached</p>
+              @if (store.round()?.outcome === 'ACTIVE') {
+                <p>Your time is capped. You can still finish this puzzle.</p>
+              } @else {
+                <p>This time is excluded from your average.</p>
+              }
+            } @else if (store.capturedMs() !== null) {
+              <p class="time-saved">Thinking time captured</p>
+              @if (store.round()?.outcome === 'ACTIVE') {
+                <p>Your clock is stopped. There’s no rush to type.</p>
+              } @else {
+                <p>The time you took to find your answer.</p>
+              }
+            } @else if (store.round()?.outcome === 'ACTIVE') {
+              <p>Found a solution? Freeze your time before you type it.</p>
+            } @else if (store.round()) {
+              <p>No thinking time captured.</p>
+            } @else {
+              <p>Your timer starts when your cards are ready.</p>
+            }
+          </div>
+          @if (store.round()?.outcome === 'ACTIVE' && store.capturedMs() === null) {
+            <button
+              class="button button-primary got-it-button"
+              type="button"
+              [disabled]="!store.canCapture()"
+              (click)="captureTime()"
+            >
+              Got It!
+            </button>
+          }
+        </div>
+        <div class="timer-footnote">
+          <span class="small-clock" aria-hidden="true"></span>
+          <p>Time away counts, up to 30 minutes. The puzzle stays open.</p>
+        </div>
+      </aside>
+    </div>
+
+    <section class="statistics" aria-labelledby="stats-title">
+      <div class="statistics-heading">
+        <h2 id="stats-title">Your practice</h2>
+        <p>For this browser</p>
+      </div>
+      <dl>
+        <div>
+          <dt>Puzzles solved</dt>
+          <dd>{{ store.statistics()?.solvedRounds ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>Average thinking time</dt>
+          <dd>
+            {{
+              store.statistics()?.averageThinkingTimeMs != null
+                ? formatTime(store.statistics()!.averageThinkingTimeMs!, true)
+                : '—'
+            }}
+          </dd>
+        </div>
+        <div>
+          <dt>Puzzles played</dt>
+          <dd>{{ store.statistics()?.totalRounds ?? '—' }}</dd>
+        </div>
+      </dl>
+      <p class="statistics-note">The average includes solved puzzles below the 30-minute limit.</p>
+    </section>
+  </main>
+  <footer>
+    <span>Small puzzles. Plenty of possibilities.</span><span>Math24 · Practice at your pace</span>
+  </footer>
+</div>
