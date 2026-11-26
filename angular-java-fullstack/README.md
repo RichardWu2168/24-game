@@ -1,15 +1,19 @@
 # Math 24: Angular + Java
 
-This directory is the development foundation for the independent Angular, Java,
-and PostgreSQL implementation of Math 24.
+This directory contains the independent Angular, Java, and PostgreSQL
+implementation of Math 24.
 
-**Current milestone:** folders, framework scaffolds, dependencies, editor
-recommendations, local database configuration, and Windows setup scripts.
-The Angular welcome page is still present. Gameplay, API game endpoints,
-database entities, and game migrations will be implemented in later milestones.
+**Current milestone:** the plain Java game engine implements expression
+validation, automatic parentheses, solving, and solvable puzzle generation,
+with focused domain tests. The development toolchain and local database setup
+are also included. The Angular welcome page is still present; the game UI,
+API game endpoints, database entities, and game migrations follow in later
+milestones.
 
 The agreed product behavior is recorded in
 [design-decisions.md](docs/design-decisions.md).
+See [the Java game engine guide](docs/java-game-engine.md) for its public API,
+input rules, examples, puzzle selection, and tests.
 
 ## Toolchain
 
@@ -37,7 +41,7 @@ compatible versions of Hibernate, Flyway, the JDBC driver, and the test librarie
 | frontend/src/app/core/ | Future application-wide API and state services |
 | frontend/src/app/shared/ | Future reusable presentation components |
 | backend/ | Spring Boot Maven project |
-| backend/src/main/java/io/github/richardwu2168/math24/game/ | API, application, domain, and persistence package boundaries |
+| backend/src/main/java/io/math24/game/ | API, application, domain, and persistence package boundaries |
 | backend/src/main/resources/ | Base, local, and production configuration |
 | infra/ | PostgreSQL Compose configuration and local environment example |
 | scripts/ | Windows tool installation, dependency setup, and backend launcher |
@@ -174,7 +178,18 @@ With PostgreSQL running, the health endpoint should be available at:
 The root URL has no controller at this milestone; a 404 at / is expected.
 Use Ctrl+C to stop the backend.
 
-To run the generated database-backed Java context test after starting PostgreSQL:
+To test the game engine without PostgreSQL or an infra/.env file:
+
+```powershell
+./scripts/Invoke-Backend.ps1 -Task EngineTest
+```
+
+This selects the `engine-tests` Maven profile and runs the plain Java domain
+tests without starting Spring Boot. On Linux or macOS, run
+`./mvnw -Pengine-tests test` from the backend directory with JDK 25 selected.
+
+To run all Java tests, including the generated database-backed Spring context
+test, first start PostgreSQL and then run:
 
 ```powershell
 ./scripts/Invoke-Backend.ps1 -Task Test
@@ -242,7 +257,7 @@ At this milestone there are no game migrations or entities. The initial
 connection can create Flyway's own history table; game tables will follow the
 agreed data model in a later milestone.
 
-## Verification of the supplied scaffold
+## Verification
 
 Verified in the development workspace:
 
@@ -252,9 +267,15 @@ Verified in the development workspace:
 - Maven Wrapper ran on Microsoft JDK 25.
 - Backend application and starter test source compiled successfully.
 
-The Windows installers and Docker engine startup must run on your Windows
-machine. The database-backed Java test and live database health check have not
-been executed in the development workspace.
+For the game engine milestone, the `engine-tests` Maven profile passed all
+**80 tests** on Java 25, with zero failures, errors, or skips. This includes
+checking all 715 card multisets against an independent oracle, confirming 556
+solvable multisets, validating every returned solution literally, and checking
+256 generated puzzles.
+
+The database-backed Spring context test and live database health check were not
+rerun for this engine milestone in the development workspace. Use `-Task Test`
+with PostgreSQL running to repeat the full Java suite on your Windows machine.
 
 ## Official setup references
 

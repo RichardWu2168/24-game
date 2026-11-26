@@ -6,7 +6,7 @@ This project is an independent Angular, Java, and PostgreSQL implementation of t
 
 This is a casual, trusted-player application: guest play, browser-measured thinking time, no user accounts, and no leaderboards. Hosting must remain entirely free.
 
-The current foundation stage establishes folders, toolchain configuration, and packages. Game behavior described here is agreed design, not functionality already implemented.
+The current milestone implements the plain Java game engine: expression validation, automatic parentheses, solving, and solvable puzzle generation, with focused domain tests. The development foundation is also in place. The Angular game screen, game API endpoints, persistence, timing, and restoration behavior below remain planned work. See [the Java game engine guide](java-game-engine.md) for the implemented domain API and test commands.
 
 ## Stack and architecture
 

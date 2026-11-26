@@ -1,4 +1,4 @@
-package io.github.richardwu2168.math24;
+package io.math24;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
