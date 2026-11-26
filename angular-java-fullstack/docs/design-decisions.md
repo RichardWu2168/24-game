@@ -6,7 +6,7 @@ This project is an independent Angular, Java, and PostgreSQL implementation of t
 
 This is a casual, trusted-player application: guest play, browser-measured thinking time, no user accounts, and no leaderboards. Hosting must remain entirely free.
 
-The current milestone connects the Java engine to a REST API and PostgreSQL persistence: guest sessions, game rounds, captured thinking time, answer attempts, reveal/skip actions, history, statistics, and idempotent operations. The Angular game screen, browser timer, local pending-request storage, and browser restoration remain planned work. See [the Java game engine guide](java-game-engine.md) for the domain API and [the Java game API guide](java-game-api.md) for the implemented HTTP/database contract and test commands.
+The Java engine, REST API, and PostgreSQL persistence are implemented. The Angular gameplay screen now provides guest play, the browser timer, answer entry, automatic-parentheses feedback, reveal/skip actions, simple statistics, pending-request storage, and browser restoration. Separate history and statistics pages and production deployment remain later milestones. See [the Java game engine guide](java-game-engine.md), [the Java game API guide](java-game-api.md), and [the Angular gameplay guide](angular-gameplay.md) for their boundaries and verification commands.
 
 ## Stack and architecture
 
@@ -51,7 +51,7 @@ Calculate elapsed time from a persisted browser start timestamp rather than coun
 
 Retain guest-session access in the same browser. Cross-device recovery and recovery after losing the guest credential are outside this scope. Keep credentials out of URLs; a session identifier alone must not authorize access to another session.
 
-The browser will generate a 32-byte cryptographically random credential, encode it as unpadded base64url, and save it locally before initializing a session. Send it in the Authorization Bearer header. The backend stores only a SHA-256 digest. Initializing with the same credential restores the same session, including after a lost initialization response. Guest credentials are separate from public session and round identifiers.
+The browser generates a 32-byte cryptographically random credential, encodes it as unpadded base64url, and saves it locally before initializing a session. It sends the credential in the Authorization Bearer header on game API requests. The backend stores only a SHA-256 digest. Initializing with the same credential restores the same session, including after a lost initialization response. Guest credentials are separate from public session and round identifiers.
 
 Make round creation, answer submission, and other state changes safe to retry after a lost response. Repeated operations must not create duplicate rounds or attempts. Angular must ignore stale responses for older rounds and preserve entered answers during connection failures. A timeout can leave the outcome unknown, so retry the same operation identifier.
 

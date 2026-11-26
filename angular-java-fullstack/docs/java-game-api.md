@@ -434,10 +434,11 @@ created with a new operation ID.
 
 ## Next integration step
 
-Angular will supply the playable screen, browser timer, local pending-command
-storage, stale-response handling, and history/statistics views. This API already
-provides the server-side boundaries for those flows; it does not implement the
-browser behavior itself.
+The [Angular gameplay screen](angular-gameplay.md) now supplies the playable
+screen, browser timer, local pending-command storage, stale-response handling,
+and simple session statistics. A separate history page and richer statistics
+views remain later work. This API provides their server-side boundaries; the
+browser behavior belongs to Angular.
 
 ## Framework references
 
