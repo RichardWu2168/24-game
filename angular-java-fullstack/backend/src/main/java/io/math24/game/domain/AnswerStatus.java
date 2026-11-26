@@ -1,4 +1,4 @@
-package io.github.richardwu2168.math24.game.domain;
+package io.math24.game.domain;
 
 /** Stable categories for an application service to map to its response contract. */
 public enum AnswerStatus {

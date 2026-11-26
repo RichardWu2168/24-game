@@ -1,4 +1,4 @@
-package io.github.richardwu2168.math24.game.domain;
+package io.math24.game.domain;
 
 import java.util.List;
 

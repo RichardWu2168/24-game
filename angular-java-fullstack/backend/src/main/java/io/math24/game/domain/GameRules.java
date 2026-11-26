@@ -1,4 +1,4 @@
-package io.github.richardwu2168.math24.game.domain;
+package io.math24.game.domain;
 
 /** Shared limits for the four-card, nonnegative-integer version of Math 24. */
 public final class GameRules {

@@ -8,7 +8,7 @@
 		<version>4.2.0</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>io.github.richardwu2168</groupId>
+	<groupId>io.math24</groupId>
 	<artifactId>math24-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>Math24Api</name>

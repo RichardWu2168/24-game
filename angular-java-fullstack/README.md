@@ -41,7 +41,7 @@ compatible versions of Hibernate, Flyway, the JDBC driver, and the test librarie
 | frontend/src/app/core/ | Future application-wide API and state services |
 | frontend/src/app/shared/ | Future reusable presentation components |
 | backend/ | Spring Boot Maven project |
-| backend/src/main/java/io/github/richardwu2168/math24/game/ | API, application, domain, and persistence package boundaries |
+| backend/src/main/java/io/math24/game/ | API, application, domain, and persistence package boundaries |
 | backend/src/main/resources/ | Base, local, and production configuration |
 | infra/ | PostgreSQL Compose configuration and local environment example |
 | scripts/ | Windows tool installation, dependency setup, and backend launcher |

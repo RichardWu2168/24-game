@@ -1,6 +1,6 @@
 # Java game engine
 
-The engine lives in `io.github.richardwu2168.math24.game.domain`. It uses plain
+The engine lives in `io.math24.game.domain`. It uses plain
 Java and has no dependency on Spring, HTTP, PostgreSQL, browser timing, or user
 sessions. This milestone implements the mathematics; the game API, persistence,
 and Angular game screen will connect to it in later milestones.
