@@ -2,8 +2,8 @@
 
 The engine lives in `io.math24.game.domain`. It uses plain
 Java and has no dependency on Spring, HTTP, PostgreSQL, browser timing, or user
-sessions. This milestone implements the mathematics; the game API, persistence,
-and Angular game screen will connect to it in later milestones.
+sessions. The [Java game API](java-game-api.md) now coordinates this engine with
+guest sessions and PostgreSQL. The Angular game screen is the next milestone.
 
 ## Public API
 
@@ -171,13 +171,14 @@ expression. Generator tests check 256 generated puzzles and cover reproducible
 seeds and finite generation with a constant random source.
 
 The existing Windows command below runs **all** Java tests, including the
-Spring context test, and still requires the configured local PostgreSQL database
-and `infra/.env`:
+Spring context and API/persistence integration tests. It requires the configured
+local PostgreSQL database and `infra/.env`:
 
 ```powershell
 .\scripts\Invoke-Backend.ps1 -Task Test
 ```
 
-The domain suite establishes mathematical behavior. API authorization, request
-retries, database transactions, browser timing, and UI behavior require their
-own integration work in later milestones.
+The domain suite establishes mathematical behavior. The API integration suite
+now covers guest access, retries, database transactions, and stored browser
+timing. The actual browser timer, local restoration, and UI behavior remain
+part of the upcoming Angular milestone.

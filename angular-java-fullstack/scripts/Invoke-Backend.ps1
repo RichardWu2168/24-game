@@ -1,6 +1,6 @@
 #requires -Version 5.1
 [CmdletBinding()]
-param([ValidateSet('Run', 'Test', 'EngineTest', 'Compile')][string]$Task = 'Run')
+param([ValidateSet('Run', 'Test', 'EngineTest', 'ApiTest', 'Compile')][string]$Task = 'Run')
 
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'This launcher is intended for Windows.' }
@@ -9,7 +9,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 Use-Jdk25
 
 $changes = @{}
-if ($Task -in @('Run', 'Test')) {
+if ($Task -in @('Run', 'Test', 'ApiTest')) {
     $database = Read-LocalDatabaseSettings -ProjectRoot $projectRoot
     $changes = @{
         'SPRING_PROFILES_ACTIVE' = 'local'
@@ -37,6 +37,9 @@ try {
         }
         'EngineTest' {
             Invoke-DevCommand -FilePath './mvnw.cmd' -Arguments @('-B', '-Pengine-tests', 'test')
+        }
+        'ApiTest' {
+            Invoke-DevCommand -FilePath './mvnw.cmd' -Arguments @('-B', '-Papi-tests', 'test')
         }
         'Compile' {
             Invoke-DevCommand -FilePath './mvnw.cmd' -Arguments @('-B', 'test-compile')
