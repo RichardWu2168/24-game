@@ -3,17 +3,20 @@
 This directory contains the independent Angular, Java, and PostgreSQL
 implementation of Math 24.
 
-**Current milestone:** the plain Java game engine implements expression
-validation, automatic parentheses, solving, and solvable puzzle generation,
-with focused domain tests. The development toolchain and local database setup
-are also included. The Angular welcome page is still present; the game UI,
-API game endpoints, database entities, and game migrations follow in later
-milestones.
+**Current milestone:** the Java game engine is connected to a REST API and
+PostgreSQL persistence. The backend supports guest sessions, solvable rounds,
+browser-measured thinking time, answer attempts, automatic parentheses,
+reveal/skip actions, history, statistics, and safe retries. Flyway owns the
+database schema, and focused tests cover the engine and API/database workflows.
+The Angular welcome page is still present; the playable UI and browser
+restoration logic are the next milestone.
 
 The agreed product behavior is recorded in
 [design-decisions.md](docs/design-decisions.md).
 See [the Java game engine guide](docs/java-game-engine.md) for its public API,
 input rules, examples, puzzle selection, and tests.
+See [the Java game API guide](docs/java-game-api.md) for guest access, endpoint
+contracts, timing, retries, database tables, and PowerShell examples.
 
 ## Toolchain
 
@@ -43,6 +46,7 @@ compatible versions of Hibernate, Flyway, the JDBC driver, and the test librarie
 | backend/ | Spring Boot Maven project |
 | backend/src/main/java/io/math24/game/ | API, application, domain, and persistence package boundaries |
 | backend/src/main/resources/ | Base, local, and production configuration |
+| backend/src/main/resources/db/migration/ | Versioned Flyway migrations for PostgreSQL |
 | infra/ | PostgreSQL Compose configuration and local environment example |
 | scripts/ | Windows tool installation, dependency setup, and backend launcher |
 | docs/ | Agreed design and implementation notes |
@@ -195,6 +199,16 @@ test, first start PostgreSQL and then run:
 ./scripts/Invoke-Backend.ps1 -Task Test
 ```
 
+To run only the API and persistence integration tests with PostgreSQL running:
+
+```powershell
+./scripts/Invoke-Backend.ps1 -Task ApiTest
+```
+
+The integration suite creates its own randomly named schema in the configured
+development database. It never truncates the application's normal tables.
+The full `Test` task also runs the engine tests and the Spring context test.
+
 For compilation without a database:
 
 ```powershell
@@ -253,9 +267,11 @@ Use a Java-owned production database when deployment is established. Production
 migrations are reviewed and applied separately before dependent application
 changes are released. The local role and configuration are development-only.
 
-At this milestone there are no game migrations or entities. The initial
-connection can create Flyway's own history table; game tables will follow the
-agreed data model in a later milestone.
+The first migration creates guest sessions, game rounds, answer attempts, and
+operation receipts. Constraints enforce valid cards and timing states, and a
+partial unique index allows one active round per guest session. A local backend
+startup or full test run applies the migration automatically. Keep applied
+migrations unchanged; add a new version when the schema evolves.
 
 ## Verification
 
@@ -273,9 +289,15 @@ checking all 715 card multisets against an independent oracle, confirming 556
 solvable multisets, validating every returned solution literally, and checking
 256 generated puzzles.
 
-The database-backed Spring context test and live database health check were not
-rerun for this engine milestone in the development workspace. Use `-Task Test`
-with PostgreSQL running to repeat the full Java suite on your Windows machine.
+Use `-Task Test` with PostgreSQL running to verify the complete Java suite on
+your Windows machine. The API guide describes the additional persistence,
+authorization, timing, and concurrent-retry coverage.
+
+For the API/persistence milestone, a clean Maven verification on Java 25 and
+PostgreSQL 18.7 passed **132 tests**: 80 domain cases, 51 API/database cases, and
+the Spring context startup test, with zero failures, errors, or skips. Maven
+also produced the executable Spring Boot JAR. The test JVM loads Mockito as an
+explicit agent so it does not depend on dynamic self-attachment on Java 25.
 
 ## Official setup references
 

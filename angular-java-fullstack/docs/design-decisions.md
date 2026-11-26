@@ -6,7 +6,7 @@ This project is an independent Angular, Java, and PostgreSQL implementation of t
 
 This is a casual, trusted-player application: guest play, browser-measured thinking time, no user accounts, and no leaderboards. Hosting must remain entirely free.
 
-The current milestone implements the plain Java game engine: expression validation, automatic parentheses, solving, and solvable puzzle generation, with focused domain tests. The development foundation is also in place. The Angular game screen, game API endpoints, persistence, timing, and restoration behavior below remain planned work. See [the Java game engine guide](java-game-engine.md) for the implemented domain API and test commands.
+The current milestone connects the Java engine to a REST API and PostgreSQL persistence: guest sessions, game rounds, captured thinking time, answer attempts, reveal/skip actions, history, statistics, and idempotent operations. The Angular game screen, browser timer, local pending-request storage, and browser restoration remain planned work. See [the Java game engine guide](java-game-engine.md) for the domain API and [the Java game API guide](java-game-api.md) for the implemented HTTP/database contract and test commands.
 
 ## Stack and architecture
 
@@ -51,7 +51,15 @@ Calculate elapsed time from a persisted browser start timestamp rather than coun
 
 Retain guest-session access in the same browser. Cross-device recovery and recovery after losing the guest credential are outside this scope. Keep credentials out of URLs; a session identifier alone must not authorize access to another session.
 
+The browser will generate a 32-byte cryptographically random credential, encode it as unpadded base64url, and save it locally before initializing a session. Send it in the Authorization Bearer header. The backend stores only a SHA-256 digest. Initializing with the same credential restores the same session, including after a lost initialization response. Guest credentials are separate from public session and round identifiers.
+
 Make round creation, answer submission, and other state changes safe to retry after a lost response. Repeated operations must not create duplicate rounds or attempts. Angular must ignore stale responses for older rounds and preserve entered answers during connection failures. A timeout can leave the outcome unknown, so retry the same operation identifier.
+
+Allow one active round per guest session. Creating another round requires completing, revealing, or explicitly skipping the current one. Round outcomes are ACTIVE, SOLVED, REVEALED, and SKIPPED. Timing states are NOT_CAPTURED, CAPTURED, and CAPPED; NOT_CAPTURED can remain on a skipped or revealed round.
+
+Answer submissions include the browser's already-frozen thinking duration. The backend captures it atomically if a separate timing request has not arrived, or verifies that it matches the previously captured value. An incorrect answer never replaces that time. A matching delayed timing request is harmless after completion; a different duration is a conflict.
+
+Serialize mutations for one guest session using a database row lock. A shared operation ledger records each successful operation identifier, its request fingerprint, and its response in the same transaction. Identical retries return that saved response before checking current round state; reusing an identifier for a different action or payload is a conflict. Responses include a round revision so Angular can reject stale snapshots, including older snapshots returned by legitimate retries.
 
 Proposed hosting is Vercel for Angular, Azure App Service for the Java API, and a separate Neon database. Verify free-tier availability, runtime compatibility, startup behavior, and database connectivity early. Loading delays must not consume thinking time before a puzzle becomes playable.
 
