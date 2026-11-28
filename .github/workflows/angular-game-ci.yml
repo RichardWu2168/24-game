@@ -1,0 +1,58 @@
+name: Angular Game CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "angular-java-fullstack/frontend/**"
+      - ".github/workflows/angular-game-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "angular-java-fullstack/frontend/**"
+      - ".github/workflows/angular-game-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: angular-game-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: angular-java-fullstack/frontend
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: angular-java-fullstack/frontend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check deployment routing
+        run: npm run test:deployment
+
+      - name: Test Angular
+        run: npm test -- --watch=false
+
+      - name: Build Angular
+        run: npm run build
+
+      - name: Upload browser build
+        uses: actions/upload-artifact@v4
+        with:
+          name: math24-angular-browser
+          path: angular-java-fullstack/frontend/dist/frontend/browser/
+          if-no-files-found: error
+          retention-days: 7

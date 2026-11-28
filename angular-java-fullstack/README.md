@@ -18,6 +18,10 @@ See [the Java game API guide](docs/java-game-api.md) for guest access, endpoint
 contracts, timing, retries, database tables, and PowerShell examples.
 See [the Angular gameplay guide](docs/angular-gameplay.md) for the screen,
 browser state, local API connection, and verification checklist.
+See [the deployment guide](docs/deployment.md) for Vercel API forwarding, Azure
+F1 configuration, exact CORS origins, Neon migrations, and the Java release
+workflow. These deployment files prepare the public release; cloud resources
+and account configuration are still separate setup steps.
 
 ## Toolchain
 
@@ -50,7 +54,7 @@ compatible versions of Hibernate, Flyway, the JDBC driver, and the test librarie
 | backend/src/main/resources/ | Base, local, and production configuration |
 | backend/src/main/resources/db/migration/ | Versioned Flyway migrations for PostgreSQL |
 | infra/ | PostgreSQL Compose configuration and local environment example |
-| scripts/ | Windows tool installation, dependency setup, and backend launcher |
+| scripts/ | Windows tool installation, dependency setup, backend launcher, and controlled migrations |
 | docs/ | Agreed design and implementation notes |
 
 This project remains inside the existing 24-game Git repository. There is no
@@ -277,6 +281,9 @@ client-side rendering. It does not require a production Node server.
 Use a Java-owned production database when deployment is established. Production
 migrations are reviewed and applied separately before dependent application
 changes are released. The local role and configuration are development-only.
+The `database-migrations` Maven profile and `scripts/Invoke-Migrations.ps1`
+provide that release step; the [deployment guide](docs/deployment.md) describes
+the separate direct migration connection and the runtime connection.
 
 The first migration creates guest sessions, game rounds, answer attempts, and
 operation receipts. Constraints enforce valid cards and timing states, and a
@@ -317,6 +324,14 @@ Live browser checks against the Java API and PostgreSQL verified solving,
 automatic parentheses, incorrect-answer correction, refresh restoration,
 reveal/skip, multiple-tab handling, and recovery after an API outage. The
 responsive layout was also checked at 320- and 390-pixel widths.
+
+Deployment preparation passed **57 frontend tests**, **6 deployment-configuration
+tests**, and **86 Java tests** (80 domain cases and 6 database-free CORS cases).
+The Angular production build passed. The new Java CI workflow verifies the
+release migration command on disposable PostgreSQL 18 before the full backend
+suite and a manual production deployment. That database-backed migration run and
+live hosting checks remain required; see the deployment guide's verification
+section for the workspace limitations.
 
 ## Official setup references
 

@@ -217,8 +217,10 @@ used by the PowerShell launcher.
 
 In the **production** profile, automatic Flyway startup is disabled. Reviewed
 migrations must be applied through a separate release step before the matching
-application version starts. Hibernate still validates the schema. This milestone
-does not deploy the application or establish that production release process.
+application version starts. Hibernate still validates the schema. The
+[deployment guide](deployment.md) documents the `database-migrations` Maven
+profile, PowerShell helper, and dedicated Java release workflow that provide
+this step.
 
 Once a migration has been applied, retain it unchanged and add a new versioned
 migration for subsequent schema changes.
@@ -246,6 +248,13 @@ trailing slash. Allowed API methods are `GET`, `PUT`, `POST`, and `OPTIONS`;
 allowed request headers are `Authorization` and `Content-Type`. The `Location`
 response header is exposed. Angular should send the bearer header and leave
 cookie-based `withCredentials` disabled.
+
+For the Vercel deployment, the browser calls the same website origin and Vercel
+forwards `/api/**` to Azure. Set `MATH24_ALLOWED_ORIGINS` to the exact stable
+Vercel production origin so a forwarded browser `Origin` is accepted by Spring.
+Keep Azure platform CORS unconfigured; the existing Java policy is the single
+authority. CORS does not replace guest credential validation or make the Azure
+endpoint private. See the deployment guide for explicit preview-origin setup.
 
 ## Error responses
 
