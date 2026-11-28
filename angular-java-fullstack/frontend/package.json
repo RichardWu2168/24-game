@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "test:deployment": "node --test scripts/vercel-config.test.mjs"
   },
   "private": true,
   "packageManager": "npm@11.19.1",

@@ -8,11 +8,18 @@ export const GAME_API_BASE_URL = new InjectionToken<string>('GAME_API_BASE_URL',
   factory: () => '/api/v1',
 });
 
+/** Allow a sleeping API/database to wake up, including after a long thinking pause. */
+export const GAME_API_TIMEOUT_MS = new InjectionToken<number>('GAME_API_TIMEOUT_MS', {
+  providedIn: 'root',
+  factory: () => 60_000,
+});
+
 /** Credentials are attached only to these explicit game endpoint requests. */
 @Injectable({ providedIn: 'root' })
 export class GameApi {
   private readonly http = inject(HttpClient);
   private readonly base = inject(GAME_API_BASE_URL).replace(/\/$/, '');
+  private readonly timeoutMs = inject(GAME_API_TIMEOUT_MS);
 
   initializeSession(credential: string): Promise<SessionView> {
     return this.request('PUT', '/session', credential);
@@ -63,7 +70,7 @@ export class GameApi {
           headers: new HttpHeaders({ Authorization: `Bearer ${credential}` }),
           ...(body === undefined ? {} : { body }),
         })
-        .pipe(timeout(10_000)),
+        .pipe(timeout(this.timeoutMs)),
     );
   }
 }

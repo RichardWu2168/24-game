@@ -2,7 +2,7 @@ import { HttpClient, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import { GameApi, GAME_API_BASE_URL } from './game-api';
+import { GameApi, GAME_API_BASE_URL, GAME_API_TIMEOUT_MS } from './game-api';
 import { PendingCommand } from './game.models';
 
 const credential = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -122,12 +122,64 @@ describe('GameApi HTTP boundary', () => {
     await rejected;
   });
 
-  it('times out an unanswered request instead of leaving controls busy forever', async () => {
+  it('accepts an answer response after the API wakes up without changing the saved command', async () => {
+    vi.useFakeTimers();
+    const command: PendingCommand = {
+      kind: 'ANSWER',
+      operationId,
+      roundId,
+      expression: '3+1*7-1',
+      thinkingTimeMs: 1200000,
+    };
+    const result = api.execute(credential, command);
+    const resolved = expect(result).resolves.toEqual({ revision: 2 });
+    const request = http.expectOne(`/api/v1/rounds/${roundId}/attempts`);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(request.cancelled).toBe(false);
+    expect(request.request.body).toEqual({
+      operationId,
+      expression: '3+1*7-1',
+      thinkingTimeMs: 1200000,
+    });
+    request.flush({ revision: 2 });
+    await resolved;
+  });
+
+  it('cancels an unanswered request after a bounded wait without retrying it automatically', async () => {
     vi.useFakeTimers();
     const result = api.getSession(credential);
     const rejected = expect(result).rejects.toMatchObject({ name: 'TimeoutError' });
     const request = http.expectOne('/api/v1/session');
-    await vi.advanceTimersByTimeAsync(10_000);
+
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(request.cancelled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await rejected;
+    expect(request.cancelled).toBe(true);
+    http.expectNone('/api/v1/session');
+  });
+
+  it('uses a configured request timeout', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: GAME_API_TIMEOUT_MS, useValue: 5_000 },
+      ],
+    });
+    api = TestBed.inject(GameApi);
+    http = TestBed.inject(HttpTestingController);
+    vi.useFakeTimers();
+    const result = api.getSession(credential);
+    const rejected = expect(result).rejects.toMatchObject({ name: 'TimeoutError' });
+    const request = http.expectOne('/api/v1/session');
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
     await rejected;
     expect(request.cancelled).toBe(true);
   });

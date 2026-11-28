@@ -106,6 +106,42 @@
 
 	<profiles>
 		<profile>
+			<id>database-migrations</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.flywaydb</groupId>
+						<artifactId>flyway-maven-plugin</artifactId>
+						<!-- Use the same Flyway version as the application's Spring Boot BOM. -->
+						<version>${flyway.version}</version>
+						<configuration>
+							<!-- Supply FLYWAY_URL, FLYWAY_USER, and FLYWAY_PASSWORD in the environment. -->
+							<locations>
+								<location>filesystem:${project.basedir}/src/main/resources/db/migration</location>
+							</locations>
+							<cleanDisabled>true</cleanDisabled>
+							<baselineOnMigrate>false</baselineOnMigrate>
+							<validateOnMigrate>true</validateOnMigrate>
+							<validateMigrationNaming>true</validateMigrationNaming>
+							<connectRetries>3</connectRetries>
+						</configuration>
+						<dependencies>
+							<dependency>
+								<groupId>org.flywaydb</groupId>
+								<artifactId>flyway-database-postgresql</artifactId>
+								<version>${flyway.version}</version>
+							</dependency>
+							<dependency>
+								<groupId>org.postgresql</groupId>
+								<artifactId>postgresql</artifactId>
+								<version>${postgresql.version}</version>
+							</dependency>
+						</dependencies>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
 			<id>engine-tests</id>
 			<build>
 				<plugins>

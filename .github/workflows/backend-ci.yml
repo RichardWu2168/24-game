@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'dotnet-fullstack/backend/**'
+      - '.github/workflows/backend-ci.yml'
 
 jobs:
   build-and-test:
@@ -92,4 +95,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: twentyfourgame-api
-          package: ./publish          
+          package: ./publish

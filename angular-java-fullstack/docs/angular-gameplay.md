@@ -108,7 +108,7 @@ browsers.
 | --- | --- |
 | `frontend/src/app/features/game/game-screen.ts` and its HTML/SCSS | Presentation, focus, input controls, feedback, rules, and statistics |
 | `frontend/src/app/features/game/game.store.ts` | Signal state, timing, persistence, request sequencing, and restoration |
-| `frontend/src/app/core/game-api.ts` | Typed HTTP requests, scoped authorization, and 10-second timeout |
+| `frontend/src/app/core/game-api.ts` | Typed HTTP requests, scoped authorization, and configurable 60-second timeout |
 | `frontend/src/app/core/game.models.ts` | API response types and durable pending-command union |
 | `frontend/src/app/core/game-storage.ts` | Canonical guest credentials and validation of restored browser state |
 | `frontend/src/app/core/game-browser.ts` | Injectable clock, storage, visibility, crypto, and tab ownership |
@@ -157,7 +157,7 @@ Java do not need to run for these commands. They cover the consequential timing,
 restoration, retry, and screen behavior rather than duplicating the Java solver
 tests.
 
-The implemented suite has **55 passing cases**: 10 screen cases, 11 HTTP cases,
+The implemented suite has **57 passing cases**: 10 screen cases, 13 HTTP cases,
 4 stored-state cases, and 30 game-state/recovery cases. The production build
 passed with approximately 291 kB of initial files and 78 kB estimated transfer.
 Live Chrome checks used the real Java API and PostgreSQL, including an API
@@ -183,10 +183,18 @@ For an interactive check with Java and PostgreSQL running:
    buttons, and feedback should remain readable and reachable.
 
 The automated timer tests cover the 30-minute cap without requiring a real
-30-minute wait. A separate history page, richer statistics, and free production
-hosting remain later milestones. The development proxy is not a production
-reverse proxy; deployment must explicitly connect the compiled Angular app to
-the Java API.
+30-minute wait. A separate history page and richer statistics remain later
+milestones. The development proxy applies only to `ng serve`. The
+[deployment guide](deployment.md) explains how `vercel.ts` forwards the compiled
+application's API requests to Azure, configures exact frontend origins in Java,
+and keeps player responses out of intermediary caches.
+
+`GAME_API_TIMEOUT_MS` defaults to 60,000 milliseconds for all API requests. This
+allows time for a free-tier service to wake on either an initial visit or a later
+game action. The timeout remains bounded and does not automatically replay a
+mutation; the existing pending-action journal and retry controls retain the
+original operation ID, expression, and captured duration. Tests can override the
+injection token without waiting in real time.
 
 ## Framework references
 
